@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Akhil's Concrete GeoTester to Boral v18</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 2em;
+      background-color: #f5f8fc;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      color: #2a5d9f;
+      margin-bottom: 0.5em;
+    }
+    label {
+      display: block;
+      margin-top: 1em;
+      color: #2a5d9f;
+    }
+    input[type="file"] {
+      margin-top: 0.5em;
+    }
+    button {
+      margin-top: 1em;
+      padding: 0.5em 1em;
+      background-color: #2a5d9f;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #234c7c;
+    }
+    #status {
+      margin-top: 1em;
+      font-style: italic;
+    }
+    #download-link {
+      margin-top: 1em;
+      display: block;
+      color: #2a5d9f;
+    }
+  </style>
+</head>
+<body>
+  <h1>Akhil's Concrete GeoTester to Boral v18 </h1>
+  <p>Select the two source files you receive from the lab. The tool will combine them and produce a CSV in the Quest/Boral format.</p>
+  <label>
+    Concrete Summary – one line per Cylinder (.csv)
+    <input type="file" id="summary-file" accept=".csv" />
+  </label>
+  <label>
+    Concrete Field Summary (.csv)
+    <input type="file" id="field-file" accept=".csv" />
+  </label>
+  <button id="convert-btn">Convert to Quest Format</button>
+  <div id="status"></div>
+  <a id="download-link" download="Akhils_Boral_Format.csv" style="display:none;">Download Boral CSV</a>
+
+  <script>
+    function parseCSV(text) {
+      const rows = [];
+      let i = 0, inQuotes = false, field = '', row = [];
+      while (i < text.length) {
+        const char = text[i];
+        if (char === '"') {
+          if (inQuotes && text[i + 1] === '"') {
+            field += '"'; i++;
+          } else inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          row.push(field); field = '';
+        } else if ((char === '\n' || char === '\r') && !inQuotes) {
+          if (field !== '' || row.length > 0) {
+            row.push(field); rows.push(row); row = []; field = '';
+          }
+        } else field += char;
+        i++;
+      }
+      if (field !== '' || row.length > 0) { row.push(field); rows.push(row); }
+      return rows;
+    }
+
+    function normalizePlant(plant) {
+      if (!plant) return plant;
+      const trimmed = plant.toString().trim();
+      if (trimmed.toLowerCase().startsWith('tantangara')) return 'TAN';
+      if (trimmed.toLowerCase().startsWith('marica')) return 'MAR';
+      return trimmed;
+    }
+
+    function roundToMultiple(value, multiple) {
+      if (!value || isNaN(value)) return '';
+      const num = parseFloat(value);
+      return Math.round(num / multiple) * multiple;
+    }
+
+    async function convertFiles() {
+      const summaryInput = document.getElementById('summary-file');
+      const fieldInput = document.getElementById('field-file');
+      const status = document.getElementById('status');
+      const downloadLink = document.getElementById('download-link');
+      downloadLink.style.display = 'none';
+      status.textContent = 'Reading files…';
+
+      if (!summaryInput.files.length || !fieldInput.files.length) {
+        status.textContent = 'Please choose both CSV files.';
+        return;
+      }
+
+      const [summaryText, fieldText] = await Promise.all([
+        summaryInput.files[0].text(),
+        fieldInput.files[0].text(),
+      ]);
+
+      const summaryRows = parseCSV(summaryText);
+      const fieldRows = parseCSV(fieldText);
+
+      function findHeader(rows, keys) {
+        for (let i = 0; i < rows.length; i++) {
+          for (const key of keys) {
+            if (rows[i].includes(key)) return i;
+          }
+        }
+        return 0;
+      }
+
+      const summaryHeaderIndex = findHeader(summaryRows, ['Sampled Date', 'WR #', 'Client Name']);
+      const summaryHeader = summaryRows[summaryHeaderIndex];
+      const summaryData = summaryRows.slice(summaryHeaderIndex + 1);
+
+      const fieldHeaderIndex = findHeader(fieldRows, ['Plant', 'Work Request']);
+      const fieldHeader = fieldRows[fieldHeaderIndex];
+      const fieldData = fieldRows.slice(fieldHeaderIndex + 1);
+
+      const fieldByWR = {};
+      for (const row of fieldData) {
+        const obj = {};
+        fieldHeader.forEach((col, idx) => { obj[col] = row[idx]; });
+        const wr = obj['Work Request'];
+        if (wr && !fieldByWR[wr]) fieldByWR[wr] = obj;
+      }
+
+      const questHeader = [
+        'Date','Source Code','Docket','ClientName','ProjectName','PourNo','Lots','SampleID','Specimen ID','Type','Product Code','Date Batched','Time Sampled','Time Batched','Time Moulded','Date Tested','Age Days','Age Hours','Init Curing Hrs','Std Curing Days','Grade','Density','Mass Unit Vol','Dim1','Dim2','Load Size','Progress Load','Des slmp','Measured Slump','Second Slump','Avg Diameter','Avg Height','Strength','Compact Method','Measured Air','Concrete Temp','Ambient Temp','Failure Mode','Cap','Marks','Location Description','Truck','Remarks','Rounded Density (U)','Rounded MPUV (V)','Rounded Strength (AE)'
+      ];
+
+      const questRows = [questHeader];
+
+      summaryData.forEach(row => {
+        if (row.length === 0 || row.every(cell => cell === '')) return;
+        const sm = {};
+        summaryHeader.forEach((col, idx) => { sm[col] = row[idx]; });
+
+        const wr = sm['WR #'];
+        const fieldObj = fieldByWR[wr] || {};
+
+        let pourNo = '';
+        const clientRef = fieldObj['Client Ref. #'] || fieldObj['Client Ref #'] || '';
+        if (clientRef && clientRef.trim()) pourNo = clientRef;
+        else {
+          const wsc = fieldObj['Worksheet Comments'] || '';
+          const words = wsc.split(/\s+/);
+          const trWord = words.find(w => w.toUpperCase().startsWith('TR'));
+          if (trWord) pourNo = trWord;
+        }
+        if (!pourNo && sm['WR #']) pourNo = 'TR ' + sm['WR #'];
+        let locDesc = pourNo ? pourNo.replace(/\s+/g, '') : '';
+
+        let measuredSlump = sm['Slump'];
+        if (!measuredSlump || measuredSlump.trim() === '' || measuredSlump === '0' || measuredSlump === '0.0') {
+          measuredSlump = fieldObj['Slump'] || '';
+        }
+        let desSlmp = sm['Ordered Slump'] || fieldObj['Ordered Slump'] || '';
+
+        let strength = sm['Strength'];
+        if (!strength || strength.trim() === '') strength = '0';
+        let density = sm['Average Mass per Unit Volume'];
+        if (!density || density.trim() === '') density = '0';
+        let mpuv = sm['Fresh Concrete Mass per Unit Volume'];
+
+        const questRow = [];
+        questRow.push(sm['Sampled Date']);
+        questRow.push(normalizePlant(sm['Plant']));
+        questRow.push(sm['Docket #']);
+        questRow.push(sm['Client Name']);
+        questRow.push(sm['Project Name']);
+        questRow.push(pourNo);
+        questRow.push(''); // Lots = blank
+        questRow.push(sm['Sample #']);
+        questRow.push((sm['Sample #'] || '') + (sm['Sample (eg A,B,C)'] || ''));
+        questRow.push(sm['Class'] || 'COMP100');
+        questRow.push(sm['Supplier Mix Code']);
+        questRow.push(sm['Sampled Date']);
+        questRow.push(sm['Time Sampled']);
+        questRow.push(sm['Time Batched']);
+        questRow.push(sm['Time Moulded']);
+        questRow.push(sm['Date Tested']);
+        questRow.push(sm['Age (days)']);
+        questRow.push('');
+        questRow.push('');
+        questRow.push('');
+        questRow.push('');
+        questRow.push(density);
+        questRow.push(''); // Mass Unit Vol = blank
+        questRow.push(sm['Average Diameter']);
+        questRow.push(sm['Height of Specimen']);
+        questRow.push(sm['Load size (m3)']);
+        questRow.push(sm['Progress (m3)']);
+        questRow.push(desSlmp);
+        questRow.push(measuredSlump);
+        questRow.push('');
+        questRow.push(sm['Average Diameter']);
+        questRow.push(sm['Height of Specimen']);
+        questRow.push(strength);
+        questRow.push('');
+        questRow.push(sm['Air Content']);
+        questRow.push(sm['Concrete Temp'] || fieldObj['Concrete Temperature'] || '');
+        questRow.push(sm['Ambient Temp'] || fieldObj['Ambient Temperature'] || '');
+        let failureMode = sm['Break Type'];
+        if (!failureMode || failureMode.trim() === '') failureMode = '0';
+        questRow.push(failureMode);
+        questRow.push(sm['Mould Number']);
+        questRow.push('');
+        questRow.push(locDesc);
+        questRow.push(sm['Truck #']);
+        questRow.push(sm['Pour Location / Remarks']);
+        const rd = roundToMultiple(density, 20);
+        questRow.push(rd === '' ? '0' : rd);
+        const rm = roundToMultiple(mpuv, 20);
+        questRow.push(rm === '' ? '0' : rm);
+        questRow.push(strength);
+        questRows.push(questRow);
+      });
+
+      const csvContent = questRows.map(r => r.map(v => {
+        if (v === null || v === undefined) return '';
+        const s = v.toString();
+        return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }).join(',')).join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      downloadLink.href = url;
+      downloadLink.style.display = 'inline';
+      status.textContent = 'Conversion complete.';
+    }
+
+    document.getElementById('convert-btn').addEventListener('click', convertFiles);
+  </script>
+</body>
+</html>
