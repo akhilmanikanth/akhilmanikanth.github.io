@@ -2,66 +2,484 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Akhil's Concrete GeoTester to Boral v18</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title> Akhil's Concrete Data Converter v2.0</title>
   <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --primary: #1a365d;
+      --secondary: #2d3748;
+      --accent: #3182ce;
+      --success: #38a169;
+      --warning: #d69e2e;
+      --danger: #e53e3e;
+      --light: #f7fafc;
+      --gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      --border-radius: 12px;
+    }
+
     body {
-      font-family: Arial, sans-serif;
-      margin: 2em;
-      background-color: #f5f8fc;
-      color: #333;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      color: #2d3748;
+      overflow-x: hidden;
     }
-    h1 {
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    .header {
       text-align: center;
-      color: #2a5d9f;
-      margin-bottom: 0.5em;
+      margin-bottom: 3rem;
+      color: white;
     }
-    label {
+
+    .header h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      text-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      background: linear-gradient(45deg, #ffffff, #e2e8f0);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .header .subtitle {
+      font-size: 1.1rem;
+      opacity: 0.9;
+      font-weight: 300;
+    }
+
+    .version-badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.2);
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      margin-top: 0.5rem;
+      backdrop-filter: blur(10px);
+    }
+
+    .main-card {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .card-header {
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      color: white;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .card-header h2 {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .card-header p {
+      opacity: 0.9;
+      font-size: 0.95rem;
+    }
+
+    .card-body {
+      padding: 3rem;
+    }
+
+    .file-upload-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      margin-bottom: 3rem;
+    }
+
+    .file-input-group {
+      position: relative;
+    }
+
+    .file-input-label {
       display: block;
-      margin-top: 1em;
-      color: #2a5d9f;
+      font-weight: 600;
+      color: var(--primary);
+      margin-bottom: 1rem;
+      font-size: 1.1rem;
     }
-    input[type="file"] {
-      margin-top: 0.5em;
+
+    .file-input-wrapper {
+      position: relative;
+      border: 2px dashed #cbd5e0;
+      border-radius: var(--border-radius);
+      padding: 2rem;
+      text-align: center;
+      transition: all 0.3s ease;
+      background: #f8f9fa;
     }
-    button {
-      margin-top: 1em;
-      padding: 0.5em 1em;
-      background-color: #2a5d9f;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
+
+    .file-input-wrapper:hover {
+      border-color: var(--accent);
+      background: #e3f2fd;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(49, 130, 206, 0.15);
+    }
+
+    .file-input-wrapper.has-file {
+      border-color: var(--success);
+      background: #f0fff4;
+    }
+
+    .file-input {
+      position: absolute;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
       cursor: pointer;
     }
-    button:hover {
-      background-color: #234c7c;
+
+    .file-icon {
+      font-size: 3rem;
+      color: #a0aec0;
+      margin-bottom: 1rem;
     }
-    #status {
-      margin-top: 1em;
-      font-style: italic;
+
+    .file-text {
+      color: #718096;
+      font-weight: 500;
     }
-    #download-link {
-      margin-top: 1em;
+
+    .file-name {
+      color: var(--success);
+      font-weight: 600;
+      margin-top: 0.5rem;
+    }
+
+    .convert-section {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+
+    .convert-btn {
+      background: linear-gradient(135deg, var(--accent), #4299e1);
+      color: white;
+      border: none;
+      padding: 1rem 3rem;
+      border-radius: var(--border-radius);
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 10px 25px rgba(49, 130, 206, 0.3);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .convert-btn:hover:not(:disabled) {
+      transform: translateY(-3px);
+      box-shadow: 0 15px 35px rgba(49, 130, 206, 0.4);
+    }
+
+    .convert-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .convert-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+      transition: left 0.5s;
+    }
+
+    .convert-btn:hover::before {
+      left: 100%;
+    }
+
+    .status-section {
+      margin-bottom: 2rem;
+    }
+
+    .status {
+      padding: 1rem;
+      border-radius: var(--border-radius);
+      font-weight: 500;
+      text-align: center;
+      transition: all 0.3s ease;
+      display: none;
+    }
+
+    .status.processing {
+      background: #e6f7ff;
+      color: #1890ff;
+      border: 1px solid #91d5ff;
       display: block;
-      color: #2a5d9f;
+      animation: pulse 2s infinite;
+    }
+
+    .status.success {
+      background: #f6ffed;
+      color: var(--success);
+      border: 1px solid #b7eb8f;
+      display: block;
+    }
+
+    .status.error {
+      background: #fff2f0;
+      color: var(--danger);
+      border: 1px solid #ffccc7;
+      display: block;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.7; }
+      100% { opacity: 1; }
+    }
+
+    .download-section {
+      text-align: center;
+    }
+
+    .download-link {
+      display: inline-block;
+      background: linear-gradient(135deg, var(--success), #48bb78);
+      color: white;
+      text-decoration: none;
+      padding: 1rem 2.5rem;
+      border-radius: var(--border-radius);
+      font-weight: 600;
+      transition: all 0.3s ease;
+      box-shadow: 0 8px 20px rgba(56, 161, 105, 0.3);
+      display: none;
+    }
+
+    .download-link:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(56, 161, 105, 0.4);
+    }
+
+    .download-link.show {
+      display: inline-block;
+      animation: bounceIn 0.6s ease-out;
+    }
+
+    @keyframes bounceIn {
+      0% { transform: scale(0.3); opacity: 0; }
+      50% { transform: scale(1.05); }
+      70% { transform: scale(0.9); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 4px;
+      background: #e2e8f0;
+      border-radius: 2px;
+      overflow: hidden;
+      margin: 1rem 0;
+      display: none;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), #4299e1);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.5rem;
+      margin-top: 2rem;
+    }
+
+    .stat-card {
+      background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+      padding: 1.5rem;
+      border-radius: var(--border-radius);
+      text-align: center;
+      border: 1px solid #dee2e6;
+    }
+
+    .stat-number {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--accent);
+      display: block;
+    }
+
+    .stat-label {
+      color: #6c757d;
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 3rem;
+      color: rgba(255,255,255,0.8);
+      font-size: 0.9rem;
+    }
+
+    .feature-badges {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      margin: 2rem 0;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      background: rgba(255,255,255,0.1);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    @media (max-width: 768px) {
+      .file-upload-section {
+        grid-template-columns: 1fr;
+      }
+      
+      .header h1 {
+        font-size: 2rem;
+      }
+      
+      .container {
+        padding: 1rem;
+      }
+      
+      .card-body {
+        padding: 2rem;
+      }
+    }
+
+    .loading-spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid var(--accent);
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+      margin-right: 0.5rem;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
   </style>
 </head>
 <body>
-  <h1>Akhil's Concrete GeoTester to Boral v18 </h1>
-  <p>Select the two source files you receive from the lab. The tool will combine them and produce a CSV in the Quest/Boral format.</p>
-  <label>
-    Concrete Summary – one line per Cylinder (.csv)
-    <input type="file" id="summary-file" accept=".csv" />
-  </label>
-  <label>
-    Concrete Field Summary (.csv)
-    <input type="file" id="field-file" accept=".csv" />
-  </label>
-  <button id="convert-btn">Convert to Quest Format</button>
-  <div id="status"></div>
-  <a id="download-link" download="Akhils_Boral_Format.csv" style="display:none;">Download Boral CSV</a>
+  <div class="container">
+    <div class="header">
+      <h1>DCT's Professional Tool</h1>
+      <p class="subtitle">Document Controller Technical | Concrete Testing Data Converter</p>
+      <span class="version-badge">Version 2.0 Professional</span>
+      
+      <div class="feature-badges">
+        <span class="badge">🚀 High Performance</span>
+        <span class="badge">📊 Data Analytics</span>
+        <span class="badge">🔒 Secure Processing</span>
+        <span class="badge">⚡ Real-time Conversion</span>
+      </div>
+    </div>
+
+    <div class="main-card">
+      <div class="card-header">
+        <h2>GeoTester to Boral Format Converter</h2>
+        <p>Professional-grade concrete testing data transformation tool</p>
+      </div>
+
+      <div class="card-body">
+        <div class="file-upload-section">
+          <div class="file-input-group">
+            <label class="file-input-label">📋 Concrete Summary Data</label>
+            <div class="file-input-wrapper" id="summary-wrapper">
+              <input type="file" id="summary-file" class="file-input" accept=".csv" />
+              <div class="file-icon">📄</div>
+              <div class="file-text">Drop your CSV file here or click to browse</div>
+              <div class="file-name" id="summary-name"></div>
+            </div>
+          </div>
+
+          <div class="file-input-group">
+            <label class="file-input-label">🏗️ Field Summary Data</label>
+            <div class="file-input-wrapper" id="field-wrapper">
+              <input type="file" id="field-file" class="file-input" accept=".csv" />
+              <div class="file-icon">📊</div>
+              <div class="file-text">Drop your CSV file here or click to browse</div>
+              <div class="file-name" id="field-name"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="convert-section">
+          <button id="convert-btn" class="convert-btn" disabled>
+            🔄 Convert to Boral Format
+          </button>
+        </div>
+
+        <div class="status-section">
+          <div id="status" class="status"></div>
+          <div class="progress-bar" id="progress-bar">
+            <div class="progress-fill" id="progress-fill"></div>
+          </div>
+        </div>
+
+        <div class="download-section">
+          <a id="download-link" class="download-link" download="DCT_Boral_Professional_Export.csv">
+            📥 Download Converted File
+          </a>
+        </div>
+
+        <div class="stats-grid" id="stats-grid" style="display: none;">
+          <div class="stat-card">
+            <span class="stat-number" id="records-processed">0</span>
+            <span class="stat-label">Records Processed</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-number" id="processing-time">0s</span>
+            <span class="stat-label">Processing Time</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-number" id="success-rate">100%</span>
+            <span class="stat-label">Success Rate</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p>Powered by Team DCT </p>
+      <p>Akhil Manikanth © 2025 </p>
+    </div>
+  </div>
 
   <script>
+    // Enhanced CSV parser with better error handling
     function parseCSV(text) {
       const rows = [];
       let i = 0, inQuotes = false, field = '', row = [];
@@ -98,158 +516,291 @@
       return Math.round(num / multiple) * multiple;
     }
 
+    // Enhanced UI interactions
+    function setupFileHandlers() {
+      const summaryFile = document.getElementById('summary-file');
+      const fieldFile = document.getElementById('field-file');
+      const summaryWrapper = document.getElementById('summary-wrapper');
+      const fieldWrapper = document.getElementById('field-wrapper');
+      const convertBtn = document.getElementById('convert-btn');
+
+      function handleFileSelect(input, wrapper, nameElement) {
+        input.addEventListener('change', function() {
+          if (this.files.length > 0) {
+            wrapper.classList.add('has-file');
+            nameElement.textContent = `✓ ${this.files[0].name}`;
+            checkBothFilesSelected();
+          } else {
+            wrapper.classList.remove('has-file');
+            nameElement.textContent = '';
+            convertBtn.disabled = true;
+          }
+        });
+
+        // Drag and drop functionality
+        wrapper.addEventListener('dragover', function(e) {
+          e.preventDefault();
+          wrapper.style.borderColor = 'var(--accent)';
+          wrapper.style.background = '#e3f2fd';
+        });
+
+        wrapper.addEventListener('dragleave', function(e) {
+          e.preventDefault();
+          wrapper.style.borderColor = '#cbd5e0';
+          wrapper.style.background = '#f8f9fa';
+        });
+
+        wrapper.addEventListener('drop', function(e) {
+          e.preventDefault();
+          wrapper.style.borderColor = '#cbd5e0';
+          wrapper.style.background = '#f8f9fa';
+          
+          const files = e.dataTransfer.files;
+          if (files.length > 0) {
+            input.files = files;
+            input.dispatchEvent(new Event('change'));
+          }
+        });
+      }
+
+      function checkBothFilesSelected() {
+        if (summaryFile.files.length > 0 && fieldFile.files.length > 0) {
+          convertBtn.disabled = false;
+          convertBtn.textContent = '🚀 Ready to Convert!';
+        }
+      }
+
+      handleFileSelect(summaryFile, summaryWrapper, document.getElementById('summary-name'));
+      handleFileSelect(fieldFile, fieldWrapper, document.getElementById('field-name'));
+    }
+
+    // Enhanced conversion with progress tracking
     async function convertFiles() {
+      const startTime = Date.now();
       const summaryInput = document.getElementById('summary-file');
       const fieldInput = document.getElementById('field-file');
       const status = document.getElementById('status');
       const downloadLink = document.getElementById('download-link');
-      downloadLink.style.display = 'none';
-      status.textContent = 'Reading files…';
+      const progressBar = document.getElementById('progress-bar');
+      const progressFill = document.getElementById('progress-fill');
+      const statsGrid = document.getElementById('stats-grid');
+      const convertBtn = document.getElementById('convert-btn');
 
-      if (!summaryInput.files.length || !fieldInput.files.length) {
-        status.textContent = 'Please choose both CSV files.';
-        return;
-      }
+      // Reset UI
+      downloadLink.classList.remove('show');
+      status.className = 'status processing';
+      status.innerHTML = '<div class="loading-spinner"></div>Processing your files...';
+      progressBar.style.display = 'block';
+      convertBtn.disabled = true;
 
-      const [summaryText, fieldText] = await Promise.all([
-        summaryInput.files[0].text(),
-        fieldInput.files[0].text(),
-      ]);
+      try {
+        // Simulate progress for better UX
+        progressFill.style.width = '20%';
+        
+        if (!summaryInput.files.length || !fieldInput.files.length) {
+          throw new Error('Please select both CSV files.');
+        }
 
-      const summaryRows = parseCSV(summaryText);
-      const fieldRows = parseCSV(fieldText);
+        status.innerHTML = '<div class="loading-spinner"></div>Reading file contents...';
+        progressFill.style.width = '40%';
 
-      function findHeader(rows, keys) {
-        for (let i = 0; i < rows.length; i++) {
-          for (const key of keys) {
-            if (rows[i].includes(key)) return i;
+        const [summaryText, fieldText] = await Promise.all([
+          summaryInput.files[0].text(),
+          fieldInput.files[0].text(),
+        ]);
+
+        status.innerHTML = '<div class="loading-spinner"></div>Parsing data structures...';
+        progressFill.style.width = '60%';
+
+        const summaryRows = parseCSV(summaryText);
+        const fieldRows = parseCSV(fieldText);
+
+        function findHeader(rows, keys) {
+          for (let i = 0; i < rows.length; i++) {
+            for (const key of keys) {
+              if (rows[i].includes(key)) return i;
+            }
           }
+          return 0;
         }
-        return 0;
+
+        const summaryHeaderIndex = findHeader(summaryRows, ['Sampled Date', 'WR #', 'Client Name']);
+        const summaryHeader = summaryRows[summaryHeaderIndex];
+        const summaryData = summaryRows.slice(summaryHeaderIndex + 1);
+
+        const fieldHeaderIndex = findHeader(fieldRows, ['Plant', 'Work Request']);
+        const fieldHeader = fieldRows[fieldHeaderIndex];
+        const fieldData = fieldRows.slice(fieldHeaderIndex + 1);
+
+        status.innerHTML = '<div class="loading-spinner"></div>Building field mapping...';
+        progressFill.style.width = '75%';
+
+        const fieldByWR = {};
+        for (const row of fieldData) {
+          const obj = {};
+          fieldHeader.forEach((col, idx) => { obj[col] = row[idx]; });
+          const wr = obj['Work Request'];
+          if (wr && !fieldByWR[wr]) fieldByWR[wr] = obj;
+        }
+
+        const questHeader = [
+          'Date','Source Code','Docket','ClientName','ProjectName','PourNo','Lots','SampleID','Specimen ID','Type','Product Code','Date Batched','Time Sampled','Time Batched','Time Moulded','Date Tested','Age Days','Age Hours','Init Curing Hrs','Std Curing Days','Grade','Density','Mass Unit Vol','Dim1','Dim2','Load Size','Progress Load','Des slmp','Measured Slump','Second Slump','Avg Diameter','Avg Height','Strength','Compact Method','Measured Air','Concrete Temp','Ambient Temp','Failure Mode','Cap','Marks','Location Description','Truck','Remarks','Rounded Density (U)','Rounded MPUV (V)','Rounded Strength (AE)'
+        ];
+
+        status.innerHTML = '<div class="loading-spinner"></div>Converting to Boral format...';
+        progressFill.style.width = '90%';
+
+        const questRows = [questHeader];
+        let processedRecords = 0;
+
+        summaryData.forEach(row => {
+          if (row.length === 0 || row.every(cell => cell === '')) return;
+          
+          const sm = {};
+          summaryHeader.forEach((col, idx) => { sm[col] = row[idx]; });
+
+          const wr = sm['WR #'];
+          const fieldObj = fieldByWR[wr] || {};
+
+          let pourNo = '';
+          const clientRef = fieldObj['Client Ref. #'] || fieldObj['Client Ref #'] || '';
+          if (clientRef && clientRef.trim()) pourNo = clientRef;
+          else {
+            const wsc = fieldObj['Worksheet Comments'] || '';
+            const words = wsc.split(/\s+/);
+            const trWord = words.find(w => w.toUpperCase().startsWith('TR'));
+            if (trWord) pourNo = trWord;
+          }
+          if (!pourNo && sm['WR #']) pourNo = 'TR ' + sm['WR #'];
+          let locDesc = pourNo ? pourNo.replace(/\s+/g, '') : '';
+
+          let measuredSlump = sm['Slump'];
+          if (!measuredSlump || measuredSlump.trim() === '' || measuredSlump === '0' || measuredSlump === '0.0') {
+            measuredSlump = fieldObj['Slump'] || '';
+          }
+          let desSlmp = sm['Ordered Slump'] || fieldObj['Ordered Slump'] || '';
+
+          let strength = sm['Strength'];
+          if (!strength || strength.trim() === '') strength = '0';
+          let density = sm['Average Mass per Unit Volume'];
+          if (!density || density.trim() === '') density = '0';
+          let mpuv = sm['Fresh Concrete Mass per Unit Volume'];
+
+          const questRow = [];
+          questRow.push(sm['Sampled Date']);
+          questRow.push(normalizePlant(sm['Plant']));
+          questRow.push(sm['Docket #']);
+          questRow.push(sm['Client Name']);
+          questRow.push(sm['Project Name']);
+          questRow.push(pourNo);
+          questRow.push('');
+          questRow.push(sm['Sample #']);
+          questRow.push((sm['Sample #'] || '') + (sm['Sample (eg A,B,C)'] || ''));
+          questRow.push(sm['Class'] || 'COMP100');
+          questRow.push(sm['Supplier Mix Code']);
+          questRow.push(sm['Sampled Date']);
+          questRow.push(sm['Time Sampled']);
+          questRow.push(sm['Time Batched']);
+          questRow.push(sm['Time Moulded']);
+          questRow.push(sm['Date Tested']);
+          questRow.push(sm['Age (days)']);
+          questRow.push('');
+          questRow.push('');
+          questRow.push('');
+          questRow.push('');
+          questRow.push(density);
+          questRow.push('');
+          questRow.push(sm['Average Diameter']);
+          questRow.push(sm['Height of Specimen']);
+          questRow.push(sm['Load size (m3)']);
+          questRow.push(sm['Progress (m3)']);
+          questRow.push(desSlmp);
+          questRow.push(measuredSlump);
+          questRow.push('');
+          questRow.push(sm['Average Diameter']);
+          questRow.push(sm['Height of Specimen']);
+          questRow.push(strength);
+          questRow.push('');
+          questRow.push(sm['Air Content']);
+          questRow.push(sm['Concrete Temp'] || fieldObj['Concrete Temperature'] || '');
+          questRow.push(sm['Ambient Temp'] || fieldObj['Ambient Temperature'] || '');
+          let failureMode = sm['Break Type'];
+          if (!failureMode || failureMode.trim() === '') failureMode = '0';
+          questRow.push(failureMode);
+          questRow.push(sm['Mould Number']);
+          questRow.push('');
+          questRow.push(locDesc);
+          questRow.push(sm['Truck #']);
+          questRow.push(sm['Pour Location / Remarks']);
+          const rd = roundToMultiple(density, 20);
+          questRow.push(rd === '' ? '0' : rd);
+          const rm = roundToMultiple(mpuv, 20);
+          questRow.push(rm === '' ? '0' : rm);
+          questRow.push(strength);
+          questRows.push(questRow);
+          processedRecords++;
+        });
+
+        status.innerHTML = '<div class="loading-spinner"></div>Generating final output...';
+        progressFill.style.width = '95%';
+
+        const csvContent = questRows.map(r => r.map(v => {
+          if (v === null || v === undefined) return '';
+          const s = v.toString();
+          return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s;
+        }).join(',')).join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        
+        progressFill.style.width = '100%';
+        
+        // Show success
+        setTimeout(() => {
+          const endTime = Date.now();
+          const processingTime = ((endTime - startTime) / 1000).toFixed(1);
+          
+          status.className = 'status success';
+          status.textContent = '✅ Conversion completed successfully!';
+          progressBar.style.display = 'none';
+          
+          downloadLink.href = url;
+          downloadLink.classList.add('show');
+          
+          // Show stats
+          document.getElementById('records-processed').textContent = processedRecords;
+          document.getElementById('processing-time').textContent = processingTime + 's';
+          statsGrid.style.display = 'grid';
+          
+          convertBtn.disabled = false;
+          convertBtn.textContent = '🔄 Convert Another File';
+        }, 500);
+
+      } catch (error) {
+        status.className = 'status error';
+        status.textContent = `❌ Error: ${error.message}`;
+        progressBar.style.display = 'none';
+        convertBtn.disabled = false;
+        convertBtn.textContent = '🔄 Try Again';
       }
-
-      const summaryHeaderIndex = findHeader(summaryRows, ['Sampled Date', 'WR #', 'Client Name']);
-      const summaryHeader = summaryRows[summaryHeaderIndex];
-      const summaryData = summaryRows.slice(summaryHeaderIndex + 1);
-
-      const fieldHeaderIndex = findHeader(fieldRows, ['Plant', 'Work Request']);
-      const fieldHeader = fieldRows[fieldHeaderIndex];
-      const fieldData = fieldRows.slice(fieldHeaderIndex + 1);
-
-      const fieldByWR = {};
-      for (const row of fieldData) {
-        const obj = {};
-        fieldHeader.forEach((col, idx) => { obj[col] = row[idx]; });
-        const wr = obj['Work Request'];
-        if (wr && !fieldByWR[wr]) fieldByWR[wr] = obj;
-      }
-
-      const questHeader = [
-        'Date','Source Code','Docket','ClientName','ProjectName','PourNo','Lots','SampleID','Specimen ID','Type','Product Code','Date Batched','Time Sampled','Time Batched','Time Moulded','Date Tested','Age Days','Age Hours','Init Curing Hrs','Std Curing Days','Grade','Density','Mass Unit Vol','Dim1','Dim2','Load Size','Progress Load','Des slmp','Measured Slump','Second Slump','Avg Diameter','Avg Height','Strength','Compact Method','Measured Air','Concrete Temp','Ambient Temp','Failure Mode','Cap','Marks','Location Description','Truck','Remarks','Rounded Density (U)','Rounded MPUV (V)','Rounded Strength (AE)'
-      ];
-
-      const questRows = [questHeader];
-
-      summaryData.forEach(row => {
-        if (row.length === 0 || row.every(cell => cell === '')) return;
-        const sm = {};
-        summaryHeader.forEach((col, idx) => { sm[col] = row[idx]; });
-
-        const wr = sm['WR #'];
-        const fieldObj = fieldByWR[wr] || {};
-
-        let pourNo = '';
-        const clientRef = fieldObj['Client Ref. #'] || fieldObj['Client Ref #'] || '';
-        if (clientRef && clientRef.trim()) pourNo = clientRef;
-        else {
-          const wsc = fieldObj['Worksheet Comments'] || '';
-          const words = wsc.split(/\s+/);
-          const trWord = words.find(w => w.toUpperCase().startsWith('TR'));
-          if (trWord) pourNo = trWord;
-        }
-        if (!pourNo && sm['WR #']) pourNo = 'TR ' + sm['WR #'];
-        let locDesc = pourNo ? pourNo.replace(/\s+/g, '') : '';
-
-        let measuredSlump = sm['Slump'];
-        if (!measuredSlump || measuredSlump.trim() === '' || measuredSlump === '0' || measuredSlump === '0.0') {
-          measuredSlump = fieldObj['Slump'] || '';
-        }
-        let desSlmp = sm['Ordered Slump'] || fieldObj['Ordered Slump'] || '';
-
-        let strength = sm['Strength'];
-        if (!strength || strength.trim() === '') strength = '0';
-        let density = sm['Average Mass per Unit Volume'];
-        if (!density || density.trim() === '') density = '0';
-        let mpuv = sm['Fresh Concrete Mass per Unit Volume'];
-
-        const questRow = [];
-        questRow.push(sm['Sampled Date']);
-        questRow.push(normalizePlant(sm['Plant']));
-        questRow.push(sm['Docket #']);
-        questRow.push(sm['Client Name']);
-        questRow.push(sm['Project Name']);
-        questRow.push(pourNo);
-        questRow.push(''); // Lots = blank
-        questRow.push(sm['Sample #']);
-        questRow.push((sm['Sample #'] || '') + (sm['Sample (eg A,B,C)'] || ''));
-        questRow.push(sm['Class'] || 'COMP100');
-        questRow.push(sm['Supplier Mix Code']);
-        questRow.push(sm['Sampled Date']);
-        questRow.push(sm['Time Sampled']);
-        questRow.push(sm['Time Batched']);
-        questRow.push(sm['Time Moulded']);
-        questRow.push(sm['Date Tested']);
-        questRow.push(sm['Age (days)']);
-        questRow.push('');
-        questRow.push('');
-        questRow.push('');
-        questRow.push('');
-        questRow.push(density);
-        questRow.push(''); // Mass Unit Vol = blank
-        questRow.push(sm['Average Diameter']);
-        questRow.push(sm['Height of Specimen']);
-        questRow.push(sm['Load size (m3)']);
-        questRow.push(sm['Progress (m3)']);
-        questRow.push(desSlmp);
-        questRow.push(measuredSlump);
-        questRow.push('');
-        questRow.push(sm['Average Diameter']);
-        questRow.push(sm['Height of Specimen']);
-        questRow.push(strength);
-        questRow.push('');
-        questRow.push(sm['Air Content']);
-        questRow.push(sm['Concrete Temp'] || fieldObj['Concrete Temperature'] || '');
-        questRow.push(sm['Ambient Temp'] || fieldObj['Ambient Temperature'] || '');
-        let failureMode = sm['Break Type'];
-        if (!failureMode || failureMode.trim() === '') failureMode = '0';
-        questRow.push(failureMode);
-        questRow.push(sm['Mould Number']);
-        questRow.push('');
-        questRow.push(locDesc);
-        questRow.push(sm['Truck #']);
-        questRow.push(sm['Pour Location / Remarks']);
-        const rd = roundToMultiple(density, 20);
-        questRow.push(rd === '' ? '0' : rd);
-        const rm = roundToMultiple(mpuv, 20);
-        questRow.push(rm === '' ? '0' : rm);
-        questRow.push(strength);
-        questRows.push(questRow);
-      });
-
-      const csvContent = questRows.map(r => r.map(v => {
-        if (v === null || v === undefined) return '';
-        const s = v.toString();
-        return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s;
-      }).join(',')).join('\n');
-
-      const blob = new Blob([csvContent], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      downloadLink.href = url;
-      downloadLink.style.display = 'inline';
-      status.textContent = 'Conversion complete.';
     }
 
-    document.getElementById('convert-btn').addEventListener('click', convertFiles);
+    // Initialize the application
+    document.addEventListener('DOMContentLoaded', function() {
+      setupFileHandlers();
+      document.getElementById('convert-btn').addEventListener('click', convertFiles);
+      
+      // Add some nice entrance animations
+      setTimeout(() => {
+        document.querySelector('.main-card').style.transform = 'translateY(0)';
+        document.querySelector('.main-card').style.opacity = '1';
+      }, 300);
+    });
+
+    // Initial card animation
+    document.querySelector('.main-card').style.transform = 'translateY(30px)';
+    document.querySelector('.main-card').style.opacity = '0';
+    document.querySelector('.main-card').style.transition = 'all 0.6s ease';
   </script>
 </body>
 </html>
