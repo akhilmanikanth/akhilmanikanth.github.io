@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DCT’s Grout‑to‑Boral Converter</title>
+  <style>
+    :root {
+      --primary: #2a5d9f;        /* Future Generation JV blue */
+      --secondary: #e8f1ff;      /* light blue background */
+      --accent: #f7ba2a;         /* warm accent colour */
+      --text-dark: #333;
+    }
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: var(--secondary);
+      color: var(--text-dark);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    .header {
+      position: relative;
+      text-align: center;
+      color: white;
+      /* Decorative background: try to load the local header image first; 
+         fallback to a gradient if the image is missing. */
+      background-image: url('header_image.png'), linear-gradient(120deg, #2a5d9f 0%, #234c7c 100%);
+      background-size: cover;
+      background-position: center;
+      min-height: 220px;
+    }
+    /* Remove the image tag styling (no longer used) */
+    .header img {
+      display: none;
+    }
+    .header .title {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 2;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 2.2rem;
+      letter-spacing: 1px;
+    }
+    .header p {
+      margin: 0.5rem 0 0;
+      font-size: 1rem;
+      font-weight: 300;
+    }
+    .content {
+      flex: 1;
+      max-width: 800px;
+      /* Place the card beneath the header without overlap */
+      margin: 1.5rem auto 2rem;
+      background: #fff;
+      padding: 2rem 2.5rem;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .content .field {
+      margin-bottom: 1.5rem;
+    }
+    .content label {
+      display: block;
+      margin-bottom: 0.4rem;
+      font-weight: 600;
+      color: var(--primary);
+    }
+    .content input[type="file"] {
+      width: 100%;
+      padding: 0.6rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    .actions {
+      text-align: center;
+      margin-top: 2rem;
+    }
+    .btn {
+      display: inline-block;
+      background: var(--primary);
+      color: white;
+      padding: 0.8rem 1.8rem;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: background 0.2s ease;
+    }
+    .btn:hover {
+      background: #234c7c;
+    }
+    .btn:disabled {
+      background: #9ab5d1;
+      cursor: not-allowed;
+    }
+    #download-link {
+      display: none;
+      margin-top: 1.5rem;
+      text-decoration: none;
+      background: #28a745;
+      color: #fff;
+      padding: 0.8rem 1.8rem;
+      border-radius: 4px;
+    }
+    footer {
+      text-align: center;
+      padding: 1rem;
+      background: #f0f5fc;
+      font-size: 0.85rem;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">
+      <h1>DCT’s Grout‑to‑Boral Converter</h1>
+      <p>Document Controller Technical • Future Generation JV</p>
+    </div>
+  </div>
+  <div class="content">
+    <div class="field">
+      <label for="cubeFile">One line per Cube (.csv)</label>
+      <input type="file" id="cubeFile" accept=".csv">
+    </div>
+    <div class="field">
+      <label for="exportFile">Grout Summary Export (.csv) (optional)</label>
+      <input type="file" id="exportFile" accept=".csv">
+    </div>
+    <div class="actions">
+      <button class="btn" id="convertBtn" disabled>Convert to Boral Format</button>
+      <a id="download-link" href="#" download="boral_output.csv">Download CSV</a>
+    </div>
+  </div>
+  <footer>
+    © Future Generation Joint Venture – DCT Team Tool
+  </footer>
+
+  <script>
+    // CSV parsing with quotes support
+    function parseCSV(text) {
+      const rows = [];
+      let i = 0;
+      const len = text.length;
+      let currentRow = [];
+      let currentField = '';
+      let inQuotes = false;
+      while (i < len) {
+        const char = text[i];
+        if (inQuotes) {
+          if (char === '"') {
+            if (i + 1 < len && text[i + 1] === '"') {
+              currentField += '"';
+              i++;
+            } else {
+              inQuotes = false;
+            }
+          } else {
+            currentField += char;
+          }
+        } else {
+          if (char === '"') {
+            inQuotes = true;
+          } else if (char === ',') {
+            currentRow.push(currentField);
+            currentField = '';
+          } else if (char === '\n') {
+            currentRow.push(currentField);
+            rows.push(currentRow);
+            currentRow = [];
+            currentField = '';
+          } else if (char !== '\r') {
+            currentField += char;
+          }
+        }
+        i++;
+      }
+      currentRow.push(currentField);
+      rows.push(currentRow);
+      return rows;
+    }
+    function buildBoral(csvRows, exportRows) {
+      const wrToTr = {};
+      if (exportRows && exportRows.length > 1) {
+        const hdr = exportRows[0];
+        const wrIndex = hdr.indexOf('WR #');
+        const clientRefIndex = hdr.indexOf('Client Ref. #');
+        if (wrIndex >= 0 && clientRefIndex >= 0) {
+          for (let r = 1; r < exportRows.length; r++) {
+            const row = exportRows[r];
+            const wr = row[wrIndex];
+            const tr = row[clientRefIndex];
+            if (wr && tr) {
+              if (!wrToTr[wr]) wrToTr[wr] = tr;
+            }
+          }
+        }
+      }
+      const header = csvRows[0];
+      const index = (name) => header.indexOf(name);
+      const get = (row, name) => {
+        const i = index(name);
+        return i >= 0 ? row[i] : '';
+      };
+      const out = [];
+      const boralHeader = [
+        'Date','Source Code','Docket','ClientName','ProjectName','PourNo','Lots',
+        'SampleID','Specimen ID','Type','Product Code','Date Batched','Time Sampled','Time Batched',
+        'Time Moulded','Date Tested','Age Days','Age Hours','Init Curing Hrs','Std Curing Days',
+        'Grade','Density','Mass Unit Vol','Dim1','Dim2','Load Size','Progress Load','Des slmp',
+        'Measured Slump','Second Slump','Avg Diameter','Avg Height','Strength','Compact Method',
+        'Measured Air','Concrete Temp','Ambient Temp','Failure Mode','Cap','Marks',
+        'Location Description','Truck','Remarks','Rounded Density (U)','Rounded MPUV (V)','Rounded Strength (AE)'
+      ];
+      out.push(boralHeader);
+      function toFloat(value) {
+        const n = parseFloat(value);
+        return isNaN(n) ? null : n;
+      }
+      const col = {
+        sampledDate: index('Sampled Date'),
+        wr: index('WR #'),
+        clientName: index('Client Name'),
+        projectName: index('Project Name'),
+        docket: index('Docket #'),
+        supplierMix: index('Supplier Mix Code'),
+        timeSampled: index('Time Sampled'),
+        timeBatched: index('Time Batched'),
+        timeMoulded: index('Time Moulded'),
+        dateTested: index('Date Tested'),
+        ageDays: index('Age (days)'),
+        grade: index('Grade'),
+        sampleID: index('Sample #'),
+        sampleLetter: index('Sample (eg A,B,C)'),
+        avgMass: index('Average Mass per Unit Volume'),
+        additionalMass: index('Additional Mass per Unit Volume'),
+        strength: index('Strength'),
+        avgDiameter: index('Average Diameter'),
+        heightSpecimen: index('Height of Specimen'),
+        loadSize: index('Load size (m3)'),
+        progress: index('Progress (m3)'),
+        consistency: index('Consistency'),
+        concreteTemp: index('Concrete Temp'),
+        ambientTemp: index('Ambient Temp'),
+        breakType: index('Break Type'),
+        mouldNumber: index('Mould Number'),
+        pourRemarks: index('Pour Location / Remarks'),
+        truck: index('Truck #'),
+        comments: index('Comments')
+      };
+      for (let r = 1; r < csvRows.length; r++) {
+        const row = csvRows[r];
+        if (!row) continue;
+        const sampleDate = get(row, 'Sampled Date') || '';
+        const wr = get(row, 'WR #');
+        const trNo = wr && wrToTr[wr] ? wrToTr[wr] : '';
+        const sampleNo = get(row, 'Sample #') || '';
+        const sampleLetter = get(row, 'Sample (eg A,B,C)') || '';
+        const specimenID = sampleNo || sampleLetter ? `${sampleNo}${sampleLetter}` : '';
+        const avgMass = toFloat(get(row, 'Average Mass per Unit Volume'));
+        const additionalMass = toFloat(get(row, 'Additional Mass per Unit Volume'));
+        const strengthVal = toFloat(get(row, 'Strength'));
+        const density = avgMass != null ? String(avgMass) : '';
+        const mpuv = additionalMass != null ? String(additionalMass) : '';
+        const roundedDensity = avgMass != null ? String(Math.round(avgMass)) : '';
+        const roundedMPUV = additionalMass != null ? String(Math.round(additionalMass)) : '';
+        const roundedStrength = strengthVal != null ? String(Math.round(strengthVal * 10) / 10) : '';
+        out.push([
+          sampleDate,
+          '',
+          get(row, 'Docket #') || '',
+          get(row, 'Client Name') || '',
+          get(row, 'Project Name') || '',
+          trNo,
+          '',
+          sampleNo,
+          specimenID,
+          '',
+          get(row, 'Supplier Mix Code') || '',
+          sampleDate,
+          get(row, 'Time Sampled') || '',
+          get(row, 'Time Batched') || '',
+          get(row, 'Time Moulded') || '',
+          get(row, 'Date Tested') || '',
+          get(row, 'Age (days)') || '',
+          '', '', '',
+          get(row, 'Grade') || '',
+          density,
+          mpuv,
+          get(row, 'Average Diameter') || '',
+          get(row, 'Height of Specimen') || '',
+          get(row, 'Load size (m3)') || '',
+          get(row, 'Progress (m3)') || '',
+          '',
+          get(row, 'Consistency') || '',
+          '',
+          get(row, 'Average Diameter') || '',
+          get(row, 'Height of Specimen') || '',
+          strengthVal != null ? String(strengthVal) : '',
+          '', '',
+          get(row, 'Concrete Temp') || '',
+          get(row, 'Ambient Temp') || '',
+          get(row, 'Break Type') || '',
+          '',
+          get(row, 'Mould Number') || '',
+          get(row, 'Pour Location / Remarks') || '',
+          get(row, 'Truck #') || '',
+          get(row, 'Comments') || '',
+          roundedDensity,
+          roundedMPUV,
+          roundedStrength
+        ]);
+      }
+      return out;
+    }
+    function toCSV(rows) {
+      return rows.map(row => row.map(cell => {
+        if (cell == null) return '';
+        const s = String(cell);
+        if (/["]/.test(s)) {
+          return '"' + s.replace(/"/g, '""') + '"';
+        }
+        if (/[,\n]/.test(s)) {
+          return '"' + s + '"';
+        }
+        return s;
+      }).join(',')).join('\r\n');
+    }
+    const cubeInput = document.getElementById('cubeFile');
+    const exportInput = document.getElementById('exportFile');
+    const convertBtn = document.getElementById('convertBtn');
+    const downloadLink = document.getElementById('download-link');
+    function updateState() {
+      convertBtn.disabled = !cubeInput.files.length;
+    }
+    cubeInput.addEventListener('change', updateState);
+    exportInput.addEventListener('change', updateState);
+    convertBtn.addEventListener('click', () => {
+      const cubeFile = cubeInput.files[0];
+      const exportFile = exportInput.files[0];
+      if (!cubeFile) {
+        alert('Please select the one-line-per-cube CSV file.');
+        return;
+      }
+      const cubeReader = new FileReader();
+      cubeReader.onload = () => {
+        const cubeRows = parseCSV(cubeReader.result);
+        if (!cubeRows || cubeRows.length < 2) {
+          alert('Cube file appears empty or invalid.');
+          return;
+        }
+        const buildAndDownload = (exportRows) => {
+          const boralRows = buildBoral(cubeRows, exportRows);
+          const csv = toCSV(boralRows);
+          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          downloadLink.href = url;
+          downloadLink.download = 'boral_output.csv';
+          downloadLink.style.display = 'inline-block';
+          downloadLink.textContent = 'Download CSV (' + (boralRows.length - 1) + ' rows)';
+          // trigger click for immediate download
+          downloadLink.click();
+        };
+        if (exportFile) {
+          const exportReader = new FileReader();
+          exportReader.onload = () => {
+            const exportRows = parseCSV(exportReader.result);
+            buildAndDownload(exportRows);
+          };
+          exportReader.readAsText(exportFile);
+        } else {
+          buildAndDownload([]);
+        }
+      };
+      cubeReader.readAsText(cubeFile);
+    });
+  </script>
+</body>
+</html>
