@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Temperature Data Logsheet Extractor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh; padding: 20px; display: flex; align-items: center; justify-content: center;
+        }
+        .container { max-width: 600px; width: 100%; background: white; border-radius: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%); color: white; padding: 30px; text-align: center; }
+        .header h1 { font-size: 2rem; margin-bottom: 10px; font-weight: 700; }
+        .header p { font-size: 1rem; opacity: 0.9; }
+        .upload-section { padding: 40px; text-align: center; }
+        .upload-area { border: 3px dashed #007bff; border-radius: 15px; padding: 40px; background: #f8f9fa; cursor: pointer; transition: all 0.3s ease; }
+        .upload-area:hover { border-color: #0056b3; background: #f0f8ff; transform: translateY(-2px); }
+        .upload-area.dragover { border-color: #28a745; background: #f0fff4; }
+        .upload-icon { font-size: 3rem; color: #007bff; margin-bottom: 15px; }
+        .upload-text { font-size: 1.1rem; color: #495057; margin-bottom: 15px; }
+        .file-input { display: none; }
+        .btn { background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; border: none; padding: 12px 30px; border-radius: 25px; font-size: 1rem; cursor: pointer; transition: all 0.3s ease; font-weight: 600; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0, 123, 255, 0.3); }
+        .processing { display: none; padding: 30px; text-align: center; background: #fff3cd; color: #856404; }
+        .loading-spinner { border: 3px solid #f3f3f3; border-top: 3px solid #856404; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto 15px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .success { display: none; padding: 30px; text-align: center; background: #d4edda; color: #155724; }
+        .success-icon { font-size: 3rem; margin-bottom: 15px; }
+        .download-btn { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); font-size: 1.1rem; padding: 15px 35px; margin-top: 20px; }
+        .fields-list { text-align: left; margin: 20px 0; padding: 20px; background: #f8f9fa; border-radius: 10px; }
+        .fields-list h4 { margin-bottom: 10px; color: #495057; }
+        .fields-list ul { list-style: none; padding: 0; }
+        .fields-list li { padding: 5px 0; color: #6c757d; }
+        .fields-list li:before { content: "✓ "; color: #28a745; font-weight: bold; }
+        .error { display: none; padding: 20px; background: #f8d7da; color: #721c24; text-align: center; }
+        .site-breakdown { margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>All Sites File To 🌡️ Temperature Extractor</h1>
+        <p>Extract data and create formatted site sheets (TAN, MAR, POLO, LOBS)</p>
+    </div>
+
+    <div class="upload-section" id="uploadSection">
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📁</div>
+            <div class="upload-text">Upload Excel file to create formatted logsheets</div>
+            <div style="margin: 15px 0;">or</div>
+            <button class="btn" onclick="document.getElementById('fileInput').click()">Choose File</button>
+            <input type="file" id="fileInput" class="file-input" accept=".xlsx,.xls">
+        </div>
+
+        <div class="fields-list">
+            <h4>Will create:</h4>
+            <ul>
+                <li><strong>Main Data</strong> - All temperature data</li>
+                <li><strong>TAN Sheet</strong> - TAN site data with logsheet formatting</li>
+                <li><strong>MAR Sheet</strong> - MAR site data with logsheet formatting</li>
+                <li><strong>POLO Sheet</strong> - POLO site data with logsheet formatting</li>
+                <li><strong>LOBS Sheet</strong> - LOBS site data with logsheet formatting</li>
+            </ul>
+            <div style="margin-top: 15px; font-size: 0.9rem; color: #6c757d;">
+                <strong>Main Data:</strong> All records with required columns<br>
+                <strong>Site Sheets:</strong> Records with temperature data + within date range + deduplicated + <strong>professional logsheet formatting</strong><br>
+                <strong>Date Filtering:</strong> Automatically detects date range from filename (e.g., "17.07.2025  23.07.2025")<br>
+                <strong>Deduplication:</strong> Removes duplicate entries (same Date + Pour No + Age + Type)
+            </div>
+        </div>
+    </div>
+
+    <div class="processing" id="processing">
+        <div class="loading-spinner"></div>
+        <div><strong>Creating formatted logsheets...</strong></div>
+        <div style="margin-top: 10px; font-size: 0.9rem;">Processing data and applying professional formatting</div>
+    </div>
+
+    <div class="success" id="success">
+        <div class="success-icon">📋</div>
+        <div><strong>Logsheets created successfully!</strong></div>
+        <div style="margin: 10px 0;">
+            <div>📊 Total records processed: <span id="recordCount">0</span></div>
+            <div id="siteBreakdown" class="site-breakdown"></div>
+            <div style="font-size: 0.9rem; color: #666; margin-top: 10px;">
+                💡 Each logsheet includes professional table formatting with alternating row colors
+            </div>
+        </div>
+        <button class="btn download-btn" onclick="downloadTemperatureFile()">📥 Download Complete Temperature File</button>
+        <div style="margin-top: 15px;">
+            <button class="btn" onclick="resetTool()" style="background: #6c757d;">🔄 Process Another File</button>
+        </div>
+    </div>
+
+    <div class="error" id="error">
+        <div><strong>Error processing file</strong></div>
+        <div id="errorMessage" style="margin-top: 10px;"></div>
+        <button class="btn" onclick="resetTool()" style="margin-top: 15px;">🔄 Try Again</button>
+    </div>
+</div>
+
+<script>
+    let extractedData = null;
+    let siteData = { TAN: [], MAR: [], POLO: [], LOBS: [] };
+
+    // ------------- NEW: Strong normalizer for Source Code -------------
+    function normalizeSourceCode(value) {
+        if (!value && value !== 0) return '';
+        const str = value.toString().toLowerCase().trim();
+
+        // Common variants/typos/phrases mapped to codes
+        if (str.includes('tantangara') || str === 'tan') return 'TAN';
+        // You asked for Marica (not Marulan)
+        if (str.includes('marica') || str === 'mar') return 'MAR';
+        if (str.includes('polo')) return 'POLO';           // covers "polo", "polo flat"
+        if (str.includes('lobs')) return 'LOBS';           // covers "lobs", "lobs hole"
+        // Fallback: keep short code uppercased (e.g., "tan", "mar")
+        return value.toString().toUpperCase();
+    }
+
+    // Utility
+    function findColumn(headers, possibleNames) {
+        for (let name of possibleNames) {
+            const index = headers.findIndex(header =>
+                header && header.toLowerCase().trim() === name.toLowerCase().trim()
+            );
+            if (index !== -1) return index;
+        }
+        return -1;
+    }
+
+    function convertDateFormat(dateValue) {
+        if (!dateValue || dateValue === '') return '';
+        try {
+            let dateStr = dateValue.toString().trim();
+            // Excel serial
+            if (!isNaN(dateStr) && dateStr.length >= 4) {
+                const excelDate = new Date((parseFloat(dateStr) - 25569) * 86400 * 1000);
+                if (excelDate.getFullYear() > 1900 && excelDate.getFullYear() < 2100) {
+                    const d = String(excelDate.getDate()).padStart(2, '0');
+                    const m = String(excelDate.getMonth() + 1).padStart(2, '0');
+                    const y = excelDate.getFullYear();
+                    return `${d}/${m}/${y}`;
+                }
+            }
+            // m/d/yy(yy)
+            if (dateStr.includes('/')) {
+                const parts = dateStr.split('/');
+                if (parts.length === 3) {
+                    let m = parts[0].padStart(2, '0');
+                    let d = parts[1].padStart(2, '0');
+                    let y = parts[2];
+                    if (y.length === 2) {
+                        const nowY = new Date().getFullYear();
+                        const century = Math.floor(nowY / 100) * 100;
+                        y = parseInt(y) + century;
+                        if (y - nowY > 50) y -= 100;
+                    }
+                    return `${d}/${m}/${y}`;
+                }
+            }
+            return dateValue;
+        } catch { return dateValue; }
+    }
+
+    function showProcessing() {
+        document.getElementById('uploadSection').style.display = 'none';
+        document.getElementById('processing').style.display = 'block';
+        document.getElementById('success').style.display = 'none';
+        document.getElementById('error').style.display = 'none';
+    }
+    function showSuccess(recordCount, dateRange) {
+        document.getElementById('uploadSection').style.display = 'none';
+        document.getElementById('processing').style.display = 'none';
+        document.getElementById('success').style.display = 'block';
+        document.getElementById('error').style.display = 'none';
+        document.getElementById('recordCount').textContent = recordCount;
+        let breakdown = Object.keys(siteData).map(site => `📋 ${site} Logsheet: ${siteData[site].length} records`).join('<br>');
+        if (dateRange) breakdown = `📅 Date filtered: ${dateRange.startStr} to ${dateRange.endStr}<br><br>` + breakdown;
+        document.getElementById('siteBreakdown').innerHTML = breakdown;
+    }
+    function showError(message) {
+        document.getElementById('uploadSection').style.display = 'none';
+        document.getElementById('processing').style.display = 'none';
+        document.getElementById('success').style.display = 'none';
+        document.getElementById('error').style.display = 'block';
+        document.getElementById('errorMessage').textContent = message;
+    }
+    function resetTool() {
+        document.getElementById('uploadSection').style.display = 'block';
+        document.getElementById('processing').style.display = 'none';
+        document.getElementById('success').style.display = 'none';
+        document.getElementById('error').style.display = 'none';
+        document.getElementById('fileInput').value = '';
+        extractedData = null;
+        siteData = { TAN: [], MAR: [], POLO: [], LOBS: [] };
+    }
+
+    function deduplicateRecords(records) {
+        const seen = new Set();
+        const out = [];
+        records.forEach(row => {
+            const identifier = row['PourNo'] || row['Pour No'] || row['Docket'] || 'unknown';
+            const key = `${row['Date']}_${identifier}_${row['Age Days']}_${row['Type']}_${row['Product Code']}`;
+            if (!seen.has(key)) { seen.add(key); out.push(row); }
+        });
+        return out;
+    }
+
+    // ---------- MAIN ----------
+    function processExcelFile(workbook, dateRange) {
+        try {
+            const allSitesSheet = workbook.Sheets['All Sites'];
+            if (!allSitesSheet) throw new Error('All Sites sheet not found. Please make sure you uploaded the correct file.');
+
+            const rawData = XLSX.utils.sheet_to_json(allSitesSheet, { header: 1, defval: "", raw: false });
+            if (rawData.length < 3) throw new Error('File appears to be empty or has insufficient data.');
+
+            const headers = rawData[1];
+            const requiredColumns = {
+                'Date': findColumn(headers, ['Date']),
+                'Source Code': findColumn(headers, ['Source Code']),
+                'Docket': findColumn(headers, ['Docket']),
+                'Pour No': findColumn(headers, ['PourNo','Pour No','Pur No','PourNumber','Pour Number']),
+                'Type': findColumn(headers, ['Type']),
+                'Product Code': findColumn(headers, ['Product Code']),
+                'Date Batched': findColumn(headers, ['Date Batched']),
+                'Age Days': findColumn(headers, ['Age Days']),
+                'Concrete Temp': findColumn(headers, ['Concrete Temp']),
+                'Ambient Temp': findColumn(headers, ['Ambient Temp'])
+            };
+
+            const missing = Object.keys(requiredColumns).filter(col => requiredColumns[col] === -1);
+            if (missing.length) throw new Error(`Could not find these columns: ${missing.join(', ')}`);
+
+            const dataRows = rawData.slice(3).filter(row => row && row.length > 0 && row.some(cell => cell !== undefined && cell !== ""));
+
+            // Build extracted rows (normalize Source Code here)
+            extractedData = dataRows.map((row, idx) => {
+                const r = {};
+                for (const key of Object.keys(requiredColumns)) {
+                    const i = requiredColumns[key];
+                    let val = row[i] ?? '';
+                    if ((key === 'Date' || key === 'Date Batched') && val) val = convertDateFormat(val);
+                    if (key === 'Source Code') val = normalizeSourceCode(val);
+                    r[key] = val;
+                }
+                return r;
+            }).filter(r => r['Source Code'] && r['Source Code'] !== '');
+
+            if (!extractedData.length) throw new Error('No valid data found after extraction.');
+
+            // Reset per-site buckets
+            siteData = { TAN: [], MAR: [], POLO: [], LOBS: [] };
+
+            // Group with filters + normalized Source Code
+            extractedData.forEach(row => {
+                const sourceCode = normalizeSourceCode(row['Source Code']); // ensure normalized
+                if (siteData.hasOwnProperty(sourceCode)) {
+                    const hasCT = row['Concrete Temp'] && row['Concrete Temp'] !== '' && row['Concrete Temp'] !== '0';
+                    const hasAT = row['Ambient Temp'] && row['Ambient Temp'] !== '' && row['Ambient Temp'] !== '0';
+                    const inRange = isDateInRange(row['Date'], dateRange);
+                    const hasPour = (row['Pour No'] && row['Pour No'] !== '') || (row['PourNo'] && row['PourNo'] !== '');
+                    if ((hasCT || hasAT) && inRange && hasPour) {
+                        // keep normalized code in the row for consistent exports
+                        row['Source Code'] = sourceCode;
+                        siteData[sourceCode].push(row);
+                    }
+                }
+            });
+
+            // Dedup per site (first per pour number, then general)
+            Object.keys(siteData).forEach(site => {
+                const seenPour = new Set();
+                siteData[site] = siteData[site].filter(row => {
+                    const p = row['Pour No'] || row['PourNo'] || '';
+                    if (!p) return true;
+                    if (seenPour.has(p)) return false;
+                    seenPour.add(p);
+                    return true;
+                });
+                siteData[site] = deduplicateRecords(siteData[site]);
+            });
+
+            showSuccess(extractedData.length, dateRange);
+        } catch (e) {
+            showError(e.message);
+        }
+    }
+
+    function createStructuredSiteSheet(data, siteName) {
+        const headers = ['Date','Source Code','Docket','PourNo','Type','Product Code','Date Batched','Age Days','Concrete Temp','Ambient Temp'];
+        const wsData = [headers];
+        if (data && data.length) {
+            data.forEach(row => {
+                wsData.push([
+                    row['Date'] || '',
+                    normalizeSourceCode(row['Source Code'] || ''), // ensure normalized in sheet as well
+                    row['Docket'] || '',
+                    row['Pour No'] || row['PourNo'] || '',
+                    row['Type'] || '',
+                    row['Product Code'] || '',
+                    row['Date Batched'] || '',
+                    row['Age Days'] || '',
+                    row['Concrete Temp'] || '',
+                    row['Ambient Temp'] || ''
+                ]);
+            });
+        }
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        ws['!cols'] = [
+            { wch: 12 },{ wch: 12 },{ wch: 10 },{ wch: 12 },{ wch: 12 },
+            { wch: 15 },{ wch: 12 },{ wch: 10 },{ wch: 13 },{ wch: 12 }
+        ];
+        if (ws['!ref']) {
+            const range = XLSX.utils.decode_range(ws['!ref']);
+            // header style
+            for (let c = range.s.c; c <= range.e.c; c++) {
+                const ref = XLSX.utils.encode_cell({ r: 0, c });
+                if (!ws[ref]) ws[ref] = { v: "", t: "s" };
+                ws[ref].s = {
+                    fill: { fgColor: { rgb: "4472C4" } },
+                    font: { color: { rgb: "FFFFFF" }, bold: true },
+                    alignment: { horizontal: "center" },
+                    border: { top:{style:"thin",color:{rgb:"000000"}}, bottom:{style:"thin",color:{rgb:"000000"}},
+                              left:{style:"thin",color:{rgb:"000000"}}, right:{style:"thin",color:{rgb:"000000"}} }
+                };
+            }
+            // zebra rows
+            for (let r = 1; r <= range.e.r; r++) {
+                const even = r % 2 === 0;
+                const fill = even ? "D9E2F3" : "FFFFFF";
+                for (let c = range.s.c; c <= range.e.c; c++) {
+                    const ref = XLSX.utils.encode_cell({ r, c });
+                    if (!ws[ref]) ws[ref] = { v: "", t: "s" };
+                    ws[ref].s = {
+                        fill: { fgColor: { rgb: fill } },
+                        border: { top:{style:"thin",color:{rgb:"D0D0D0"}}, bottom:{style:"thin",color:{rgb:"D0D0D0"}},
+                                  left:{style:"thin",color:{rgb:"D0D0D0"}}, right:{style:"thin",color:{rgb:"D0D0D0"}} },
+                        alignment: { vertical: "center" }
+                    };
+                }
+            }
+        }
+        return ws;
+    }
+
+    function extractDateRangeFromFilename(filename) {
+        const pat = /(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2})\.(\d{1,2})\.(\d{4})/;
+        const m = filename.match(pat);
+        if (m) {
+            const start = new Date(m[3], m[2]-1, m[1]);
+            const end = new Date(m[6], m[5]-1, m[4]);
+            return {
+                start, end,
+                startStr: `${m[1].padStart(2,'0')}/${m[2].padStart(2,'0')}/${m[3]}`,
+                endStr: `${m[4].padStart(2,'0')}/${m[5].padStart(2,'0')}/${m[6]}`
+            };
+        }
+        return null;
+    }
+    function isDateInRange(dateStr, dateRange) {
+        if (!dateRange || !dateStr) return true;
+        try {
+            const parts = dateStr.split('/');
+            if (parts.length !== 3) return true;
+            const d = parseInt(parts[0]), m = parseInt(parts[1]) - 1, y = parseInt(parts[2]);
+            const dt = new Date(y, m, d);
+            return dt >= dateRange.start && dt <= dateRange.end;
+        } catch { return true; }
+    }
+
+    function downloadTemperatureFile() {
+        if (!extractedData) { alert('No data to download'); return; }
+        try {
+            const wb = XLSX.utils.book_new();
+
+            // Keep normalized codes in Main Data too
+            const mainDataNormalized = extractedData.map(r => ({ ...r, 'Source Code': normalizeSourceCode(r['Source Code']) }));
+            const mainWs = XLSX.utils.json_to_sheet(mainDataNormalized);
+            XLSX.utils.book_append_sheet(wb, mainWs, 'Main Data');
+
+            ['TAN','MAR','POLO','LOBS'].forEach(site => {
+                const ws = createStructuredSiteSheet(siteData[site] || [], site);
+                XLSX.utils.book_append_sheet(wb, ws, site);
+            });
+
+            const now = new Date();
+            const dateStr = now.toISOString().split('T')[0].replace(/-/g, '.');
+            const filename = `All_Sites_Temperature_${dateStr}.xlsx`;
+            XLSX.writeFile(wb, filename);
+        } catch (e) {
+            console.error('Download error:', e);
+            alert('Error creating download file: ' + e.message);
+        }
+    }
+
+    function handleFile(file) {
+        if (!file.name.match(/\.(xlsx|xls)$/)) { showError('Please select an Excel file (.xlsx or .xls)'); return; }
+        const dateRange = extractDateRangeFromFilename(file.name);
+        showProcessing();
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const wb = XLSX.read(data, { type: 'array' });
+                processExcelFile(wb, dateRange);
+            } catch (err) { showError('Error reading file: ' + err.message); }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+        uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+        uploadArea.addEventListener('drop', e => {
+            e.preventDefault(); uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files; if (files.length > 0) handleFile(files[0]);
+        });
+        fileInput.addEventListener('change', e => { if (e.target.files.length > 0) handleFile(e.target.files[0]); });
+    });
+</script>
+</body>
+</html>
