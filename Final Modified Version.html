@@ -1,0 +1,1479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>DCT's — Universal Tool</title>
+    <!-- Libraries (CDN, browser-only) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <style>
+        :root{
+            --bg:#f6f8fb;
+            --panel:#ffffff;
+            --ink:#0f172a;
+            --muted:#5c6b88;
+            --stroke:#e6eaf3;
+            --brand:#22c55e;
+            --brand2:#0ea5e9;
+            --brand3:#8b5cf6;
+            --grad: linear-gradient(135deg,var(--brand) 0%, var(--brand2) 50%, var(--brand3) 100%);
+        }
+        *{box-sizing:border-box}
+        html,body{height:100%}
+        body{margin:0;background:var(--bg);color:var(--ink);font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+        a{color:inherit;text-decoration:none}
+        .layout{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
+        .sidebar{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:12px;padding:18px;border-right:1px solid var(--stroke);background:linear-gradient(180deg,#ffffff 0%,#f8fafc 100%)}
+        .brand{display:flex;align-items:center;gap:10px;padding:12px;border-radius:16px;border:1px solid var(--stroke);background:var(--panel)}
+        .logo{width:32px;height:32px;border-radius:10px;background:var(--grad)}
+        .me{margin-left:auto;font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid #c5f1d7;color:#065f46;background:#e7fbee;font-weight:700}
+        .ribbon{background:var(--grad);color:white;font-weight:700;padding:10px 12px;border-radius:12px}
+        .nav{display:flex;flex-direction:column;gap:6px}
+        .nav a{padding:10px 12px;border-radius:12px;cursor:pointer;color:#374151;border:1px solid transparent;display:flex;align-items:center;gap:10px;transition:.12s}
+        .nav a:hover{border-color:#d6e3ff;background:#f0f9ff}
+        .nav a.active{background:linear-gradient(90deg, rgba(34,197,94,.18), rgba(14,165,233,.12));border-color:#cfe8ff}
+        .main{padding:22px 24px 40px}
+        .title{font-size:24px;font-weight:900;margin:0;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+        .subtitle{margin:4px 0 0;color:var(--muted)}
+        .grid{display:grid;grid-template-columns: repeat(12, minmax(0,1fr));gap:16px}
+        .card{grid-column: span 12;background:var(--panel);border:1px solid var(--stroke);border-radius:16px;padding:14px;box-shadow:0 2px 12px rgba(15,23,42,.06)}
+        .card-header{display:flex;align-items:center;justify-content:space-between;margin:-14px -14px 12px -14px;padding:12px 14px;border-bottom:1px solid var(--stroke);border-top-left-radius:16px;border-top-right-radius:16px;background:linear-gradient(90deg, rgba(34,197,94,.10), rgba(14,165,233,.08))}
+        .stack{display:flex;flex-direction:column;gap:10px}
+        .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+        .help{color:var(--muted);font-size:13px}
+        .kpi{display:grid;grid-template-columns: repeat(3, minmax(0,1fr));gap:12px}
+        .kpi .v{font-size:22px;font-weight:900}
+        .kpi .t{font-size:12px;color:var(--muted)}
+        .kpi .card{padding:14px 16px}
+        .log{white-space:pre-wrap;background:#0b1220;color:#dbeafe;border:1px solid #1e2b47;border-radius:12px;padding:10px;height:160px;overflow:auto;margin-top:4px}
+        .badge{display:inline-block;padding:4px 10px;border:1px solid #d1d5db;border-radius:999px;color:#374151;font-size:12px;background:#f8fafc}
+        .badge.ok{background:#ecfdf5;border-color:#c5f1d7;color:#065f46}
+        .badge.warn{background:#fffbeb;border-color:#fde68a;color:#92400e}
+        button{background:#0f172a;border:none;color:#fff;font-weight:800;border-radius:12px;padding:10px 14px;cursor:pointer}
+        button.secondary{background:#0ea5e9}
+        button.alt{background:#22c55e}
+        button:disabled{opacity:.6;cursor:not-allowed}
+        input[type=file], input[type=date]{background:#f8fafc;border:1px solid #e2e8f0;color:#0f172a;border-radius:10px;padding:9px;width:100%}
+        /* Drag & Drop */
+        .drop{border:2px dashed #cdd9ea;border-radius:12px;padding:14px;text-align:center;background:#fbfdff}
+        .drop.dragover{background:#eef6ff;border-color:#8cc8ff}
+        .mini{font-size:12px;color:#64748b}
+        /* Overlay */
+        .overlay{position:fixed;inset:0;background:rgba(15,23,42,.35);display:none;align-items:center;justify-content:center;z-index:9999}
+        .overlay .box{width:min(680px,92vw);background:#ffffff;border:1px solid var(--stroke);border-radius:16px;padding:18px;box-shadow:0 10px 40px rgba(2,6,23,.25)}
+        .loader{height:10px;background:#f1f5f9;border-radius:12px;overflow:hidden}
+        .bar{height:100%;width:0;background:var(--grad)}
+        .progress-row{display:flex;align-items:center;gap:8px;margin-top:10px}
+        .truck{font-size:22px}
+        @media (max-width:980px){
+            .layout{grid-template-columns:1fr}
+            .sidebar{position:relative;height:auto}
+            .kpi{grid-template-columns:1fr}
+        }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="logo"></div>
+                <div>
+                    <div style="font-weight:800">Akhil's</div>
+                    <small style="color:#6b7280">DCT's Universal Tool</small>
+                </div>
+                <span class="me"></span>
+            </div>
+            <div class="ribbon">DCT Dashboard</div>
+            <nav class="nav" id="nav">
+                <a data-target="dashboard" class="active">🏠 Dashboard</a>
+                <a data-target="convert">🧱 Convert & Merge</a>
+                <a data-target="weekly">📅 Weekly Summary Report</a>
+                <a data-target="logs">🧾 Logs</a>
+                <a data-target="about">ℹ️ About</a>
+            </nav>
+            <div class="help" style="margin-top:auto">100% browser‑only. Files stay on your machine.</div>
+        </aside>
+
+        <!-- Main -->
+        <main class="main">
+            <h1 class="title">DCT's Universal Tool</h1>
+            <p class="subtitle"><b>Convert Quest to Boral & Make Weekly Summary Reports in Seconds</b></p>
+
+            <!-- Dashboard -->
+            <section id="dashboard" class="stack">
+                <div class="grid">
+                    <div class="card" style="grid-column: span 12">
+                        <div class="card-header"><strong>Overview</strong><span class="badge">Browser‑level only</span></div>
+                        <div class="kpi">
+                            <div class="card"><div class="v" id="kpi-rows">0</div><div class="t">Rows processed (session)</div></div>
+                            <div class="card"><div class="v" id="kpi-last">—</div><div class="t">Last export</div></div>
+                            <div class="card"><div class="v" id="kpi-files">0</div><div class="t">Files exported</div></div>
+                        </div>
+                    </div>
+                    <div class="card" style="grid-column: span 7">
+                        <div class="card-header"><strong>Concrete vs Grout</strong><span class="badge">auto-updates</span></div>
+                        <canvas id="chart-cg" height="160"></canvas>
+                    </div>
+                    <div class="card" style="grid-column: span 5">
+                        <div class="card-header"><strong>Recent Exports</strong><button id="btn-clear-history" class="badge">Clear</button></div>
+                        <div id="history" class="stack"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Convert & Merge -->
+            <section id="convert" class="stack" style="display:none">
+                <div class="grid">
+                    <!-- Concrete -->
+                    <div class="card" style="grid-column: span 6">
+                        <div class="card-header"><strong>Concrete → Concrete_Boral.xlsx</strong><span class="badge warn" id="b-cyl">waiting</span></div>
+                        <div class="stack">
+                            <div class="drop" id="drop-cyl">
+                                <div><b>Drop "Concrete Summary – one line per Cylinder"</b></div>
+                                <div class="mini">or click to select</div>
+                                <input id="f-cyl" type="file" accept=".csv,.xlsx,.xls" style="display:none"/>
+                            </div>
+                            <div class="drop" id="drop-field">
+                                <div><b>Drop "Concrete Field Summary"</b> <span class="badge warn" id="b-field">waiting</span></div>
+                                <div class="mini">or click to select</div>
+                                <input id="f-field" type="file" accept=".csv,.xlsx,.xls" style="display:none"/>
+                            </div>
+                            <div class="row"><button id="btn-conc" class="alt" disabled>⬇️ Build & Download Concrete_Boral.xlsx</button></div>
+                            <div class="help">Convert Geotester's Concrete Data in to Boral Format</div>
+                        </div>
+                    </div>
+
+                    <!-- Grout -->
+                    <div class="card" style="grid-column: span 6">
+                        <div class="card-header"><strong>Grout → Grout_Boral.xlsx</strong><span class="badge warn" id="b-cube">waiting</span></div>
+                        <div class="stack">
+                            <div class="drop" id="drop-cube">
+                                <div><b>Drop "Grout — One line per Cube"</b></div>
+                                <div class="mini">or click to select</div>
+                                <input id="f-cube" type="file" accept=".csv,.xlsx,.xls" style="display:none"/>
+                            </div>
+                            <div class="drop" id="drop-gse">
+                                <div><b>Drop "Grout Summary Export" (optional)</b> <span class="badge" id="b-gse">optional</span></div>
+                                <div class="mini">or click to select</div>
+                                <input id="f-gse" type="file" accept=".csv,.xlsx,.xls" style="display:none"/>
+                            </div>
+                            <div class="row"><button id="btn-grout" class="secondary" disabled>⬇️ Build & Download Grout_Boral.xlsx</button></div>
+                            <div class="help">Convert Geotester's Grout in to Boral Format</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><strong>Activity Log (A)</strong></div>
+                    <div class="log" id="logA">Ready.</div>
+                </div>
+            </section>
+
+            <!-- Weekly -->
+            <section id="weekly" class="stack" style="display:none">
+                <div class="grid">
+                    <div class="card" style="grid-column: span 4">
+                        <div class="card-header"><strong>Upload Boral files</strong></div>
+                        <div class="stack">
+                            <div>Concrete_Boral.xlsx <span class="badge" id="b-boralc">none</span></div>
+                            <input id="f-boralc" type="file" accept=".xlsx,.xls"/>
+                            <div>Grout_Boral.xlsx <span class="badge" id="b-boralg">none</span></div>
+                            <input id="f-boralg" type="file" accept=".xlsx,.xls"/>
+                        </div>
+                    </div>
+                    <div class="card" style="grid-column: span 4">
+                        <div class="card-header"><strong>Already-Boral site files (optional)</strong></div>
+                        <div class="stack">
+                            <div>Lobs Hole – All Samples <span class="badge" id="b-lobs">none</span></div>
+                            <input id="f-lobs" type="file" accept=".csv,.xlsx,.xls"/>
+                            <div>Polo Flat – All Samples <span class="badge" id="b-polo">none</span></div>
+                            <input id="f-polo" type="file" accept=".csv,.xlsx,.xls"/>
+                        </div>
+                    </div>
+                    <div class="card" style="grid-column: span 4">
+                        <div class="card-header"><strong>Filter (manual)</strong></div>
+                        <div class="row" style="gap:8px">
+                            <label>Start&nbsp;<input id="b-start" type="date"/></label>
+                            <label>End&nbsp;<input id="b-end" type="date"/></label>
+                        </div>
+                        <div class="row" style="margin-top:10px">
+                            <button id="btn-weekly" class="alt">Run Weekly Merge & Temp Extract</button>
+                        </div>
+                        <div class="help">Exports: <code>All_Sites_Main_Data.xlsx</code> and <code>Temperature_Extract.xlsx</code></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><strong>Activity Log (B)</strong></div>
+                    <div class="log" id="logB">Weekly ready.</div>
+                </div>
+            </section>
+
+            <!-- Logs -->
+            <section id="logs" class="stack" style="display:none">
+                <div class="grid">
+                    <div class="card" style="grid-column: span 6">
+                        <div class="card-header"><strong>Convert & Merge — Log</strong></div>
+                        <div class="log" id="logA_mirror">(Mirrors Section A)</div>
+                    </div>
+                    <div class="card" style="grid-column: span 6">
+                        <div class="card-header"><strong>Weekly — Log</strong></div>
+                        <div class="log" id="logB_mirror">(Mirrors Section B)</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- About -->
+            <section id="about" class="stack" style="display:none">
+                <div class="card">
+                    <div class="card-header"><strong>About</strong></div>
+                    <p class="help" style="font-size:18px; font-weight:bold; line-height:1.6;">
+                        🚀 Designed by <span style="color:#2c3e50;"><b>Akhil Manikanth</b></span>, this <span style="color:#16a085;">Universal Dashboard</span> empowers DCT with lightning-fast <b>Quest → Boral</b> conversions, instant weekly summaries, and many more powerful features coming soon. A hybrid redesign built for <span style="color:#e74c3c;">speed</span>, <span style="color:#2980b9;">elegance</span>, and <span style="color:#8e44ad;">efficiency</span> — <b>100% browser-based with Chart.js & XLSX.</b>
+                    </p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Overlay -->
+    <div class="overlay" id="overlay">
+        <div class="box">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <strong>Processing…</strong><span class="truck">🚚</span>
+            </div>
+            <div class="loader"><div class="bar" id="bar"></div></div>
+            <div class="progress-row"><small id="progress-text" style="color:#334155">Starting…</small></div>
+        </div>
+    </div>
+
+    <script>
+        /* ================= Navigation (works on click) ================= */
+        const sections = ['dashboard','convert','weekly','logs','about'];
+        const nav = document.getElementById('nav');
+
+        function showSection(target){
+            sections.forEach(id=>{
+                const el=document.getElementById(id);
+                if(el) el.style.display = (id===target?'block':'none');
+            });
+            [...nav.querySelectorAll('a')].forEach(a=>
+                a.classList.toggle('active', a.dataset.target===target));
+
+            // mirror logs
+            const la = document.getElementById('logA_mirror');
+            const lb = document.getElementById('logB_mirror');
+            if(la){
+                la.textContent = document.getElementById('logA').textContent;
+            }
+            if(lb){
+                lb.textContent = document.getElementById('logB').textContent;
+            }
+        }
+
+        nav.addEventListener('click', (e)=>{
+            const a = e.target.closest('a[data-target]');
+            if(!a) return;
+            e.preventDefault();
+            showSection(a.dataset.target);
+            history.replaceState(null, '', '#' + a.dataset.target);
+        });
+
+        const initial = (location.hash||'#dashboard').slice(1);
+        showSection(sections.includes(initial)?initial:'dashboard');
+
+        /* ================= KPI + Chart + History ================= */
+        const state = {
+            processedRows:0,
+            filesExported:0,
+            lastExport:'—',
+            concreteCount:0,
+            groutCount:0
+        };
+
+        const elRows = document.getElementById('kpi-rows');
+        const elFiles = document.getElementById('kpi-files');
+        const elLast = document.getElementById('kpi-last');
+        const historyEl = document.getElementById('history');
+
+        const chart = new Chart(document.getElementById('chart-cg').getContext('2d'),{
+            type:'doughnut',
+            data:{labels:['Concrete','Grout'], datasets:[{data:[0,0]}]},
+            options:{plugins:{legend:{position:'bottom'}},cutout:'60%',responsive:true,maintainAspectRatio:false}
+        });
+
+        function refreshKPI(){
+            elRows.textContent = state.processedRows.toLocaleString();
+            elFiles.textContent = state.filesExported.toString();
+            elLast.textContent = state.lastExport;
+            chart.data.datasets[0].data = [state.concreteCount, state.groutCount];
+            chart.update();
+        }
+
+        function addHistory(name){
+            const list = JSON.parse(localStorage.getItem('dct-history')||'[]');
+            list.unshift({name, time:new Date().toLocaleString()});
+            localStorage.setItem('dct-history', JSON.stringify(list.slice(0,6)));
+            renderHistory();
+        }
+
+        function renderHistory(){
+            const list = JSON.parse(localStorage.getItem('dct-history')||'[]');
+            historyEl.innerHTML = list.length? '': '<div class="help">No exports yet.</div>';
+            for(const item of list){
+                const row = document.createElement('div');
+                row.className = 'row';
+                row.style.justifyContent='space-between';
+                row.style.border='1px dashed #e2e8f0';
+                row.style.borderRadius='10px';
+                row.style.padding='8px 10px';
+                row.innerHTML = '<b>'+item.name+'</b><small style="color:#64748b">'+item.time+'</small>';
+                historyEl.appendChild(row);
+            }
+        }
+
+        renderHistory();
+        document.getElementById('btn-clear-history').addEventListener('click', ()=>{localStorage.removeItem('dct-history'); renderHistory();});
+
+        /* ================= Overlay / progress & confetti ================= */
+        const overlay = document.getElementById('overlay');
+        const bar = document.getElementById('bar');
+        const progressText = document.getElementById('progress-text');
+
+        function showOverlay(msg){
+            overlay.style.display='flex';
+            setProgress(0,msg||'Starting…');
+        }
+
+        function hideOverlay(){
+            overlay.style.display='none';
+        }
+
+        function setProgress(p,msg){
+            bar.style.width = Math.max(0,Math.min(100,p))+'%';
+            if(msg) progressText.textContent = msg;
+        }
+
+        function celebrate(){
+            const duration = 1000;
+            const end = Date.now()+duration;
+            (function frame(){
+                confetti({
+                    particleCount: 6,
+                    angle: 60,
+                    spread: 55,
+                    origin: { x: 0 }
+                });
+                confetti({
+                    particleCount: 6,
+                    angle: 120,
+                    spread: 55,
+                    origin: { x: 1 }
+                });
+                if(Date.now()<end) requestAnimationFrame(frame);
+            })();
+        }
+
+        /* ================= XLSX helpers & mapping (FIXED DATES & TEMPS) ================= */
+        const BORAL_HEADERS = ["Date","Source Code","Docket","ClientName","ProjectName","PourNo","Lots","SampleID","Specimen ID","Type","Product Code","Date Batched","Time Sampled","Time Batched","Time Moulded","Date Tested","Age Days","Age Hours","Init Curing Hrs","Std Curing Days","Grade","Density","Mass Unit Vol","Dim1","Dim2","Load Size","Progress Load","Des slmp","Measured Slump","Second Slump","Avg Diameter","Avg Height","Strength","Compact Method","Measured Air","Concrete Temp","Ambient Temp","Failure Mode","Cap","Marks","Location Description","Truck","Remarks","Rounded Density (U)","Rounded MPUV (V)","Rounded Strength (AE)"];
+
+        const TEMP_HEADERS = ["Date","Source Code","Docket","PourNo","Type","Product Code","Date Batched","Age Days","Concrete Temp","Ambient Temp","Location Description"];
+
+        function sheetToRows_strings(file){
+            return file.arrayBuffer().then(buf=>{
+                const wb = XLSX.read(buf,{type:"array", cellDates:false});
+                let best = {name: wb.SheetNames[0], rows:0};
+                for(const n of wb.SheetNames){
+                    const r = XLSX.utils.sheet_to_json(wb.Sheets[n],{defval:"", raw:false}).length;
+                    if(r>best.rows) best={name:n, rows:r};
+                }
+                const ws = wb.Sheets[best.name];
+                return XLSX.utils.sheet_to_json(ws,{defval:"", raw:false});
+            });
+        }
+
+        function csvToRows_strings(file){
+            return file.text().then(txt=>{
+                const wb = XLSX.read(txt,{type:"string"});
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                return XLSX.utils.sheet_to_json(ws,{defval:"", raw:false});
+            });
+        }
+
+        function loadAny(file){
+            if(!file) return Promise.resolve([]);
+            return /\.csv$/i.test(file.name) ? csvToRows_strings(file) : sheetToRows_strings(file);
+        }
+
+        // FIXED: Temperature handling - return empty string for blank/zero values
+        function numOrBlankTemp(v){
+            const s=String(v??"").trim();
+            if(!s || s === "0" || s === "0.0") return "";
+            const n=Number(s.replace(/[^0-9.\-]/g,""));
+            return (Number.isFinite(n) && n !== 0)?n:"";
+        }
+
+        function numOrBlank(v){
+            const s=String(v??"").trim();
+            if(!s || s === "0") return "";
+            const n=Number(s.replace(/[^0-9.\-]/g,""));
+            return Number.isFinite(n)?n:"";
+        }
+
+        function intOrBlank(v){
+            const n=numOrBlank(v);
+            return n===""?"":Math.round(n);
+        }
+
+        function round1OrBlank(v){
+            const n=numOrBlank(v);
+            return n===""?"":Math.round(n*10)/10;
+        }
+
+        function round10UpOrBlank(v){
+            const n=numOrBlank(v);
+            return n===""?"":Math.ceil(n/10)*10;
+        }
+
+        function getV(row, keys){
+            for(const k of keys){
+                if(k in row){
+                    const v=row[k];
+                    if(String(v).trim()!=="") return String(v);
+                }
+            }
+            return "";
+        }
+
+        function first(...vals){
+            for(const v of vals){
+                const s=String(v??"").trim();
+                if(s) return s;
+            }
+            return "";
+        }
+
+        function findTR(s){
+            const m = String(s||"").match(/\bTR\s*\d+\b/i);
+            return m? m[0].replace(/\s+/g," ").toUpperCase() : "";
+        }
+
+        function mapSourceCode(plant){
+            const p = String(plant||"").trim().toLowerCase();
+            if(p.startsWith("tantangara")) return "TAN";
+            if(p.startsWith("marica")) return "MAR";
+            if(p.startsWith("polo")) return "POLO";
+            if(p.startsWith("lobs")) return "LOBS";
+            return plant? String(plant).trim(): "";
+        }
+
+        // FIXED: Date normalization to always return DD/MM/YYYY format
+        function normalizeToDMYString(val){
+            if(val===undefined || val===null) return "";
+            const s = String(val).trim();
+            if(!s) return "";
+
+            // Try DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY first (preferred format)
+            let m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+            if(m){
+                let dd=+m[1], mm=+m[2], yy=+m[3];
+                if(yy<100) yy=2000+yy;
+                
+                // Validate it's a real date - if DD > 12, assume it's DD/MM, not MM/DD
+                if(dd <= 12 && mm > 12) {
+                    // Swap - this was MM/DD format, convert to DD/MM
+                    [dd, mm] = [mm, dd];
+                }
+                
+                const d=new Date(yy, mm-1, dd);
+                if(!isNaN(d)&&d.getFullYear()===yy&&d.getMonth()===mm-1&&d.getDate()===dd){
+                    return `${String(dd).padStart(2,"0")}/${String(mm).padStart(2,"0")}/${yy}`;
+                }
+                return "";
+            }
+
+            // Try YYYY/MM/DD or YYYY-MM-DD format
+            m = s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);
+            if(m){
+                let yy=+m[1], mm=+m[2], dd=+m[3];
+                const d=new Date(yy, mm-1, dd);
+                if(!isNaN(d)&&d.getFullYear()===yy&&d.getMonth()===mm-1&&d.getDate()===dd){
+                    return `${String(dd).padStart(2,"0")}/${String(mm).padStart(2,"0")}/${yy}`;
+                }
+                return "";
+            }
+
+            // Excel serial number
+            if(/^\d+(\.\d+)?$/.test(s)){
+                const n=Number(s);
+                if(n > 1) { // Valid Excel date serial
+                    const utc = Math.round((n - 25569) * 86400 * 1000);
+                    const d=new Date(utc);
+                    if(!isNaN(d)) {
+                        return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
+                    }
+                }
+            }
+
+            return "";
+        }
+
+        function dmyStringToSerial(dmy){
+            const m = dmy.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+            if(!m) return null;
+            const dd=+m[1], mm=+m[2], yy=+m[3];
+            const utc = Date.UTC(yy, mm-1, dd);
+            return (utc - Date.UTC(1899,11,30)) / 86400000;
+        }
+
+        function dateFromDMYString(s){
+            const m = String(s||"").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+            if(!m) return null;
+            const dd=+m[1], mm=+m[2], yy=+m[3];
+            const d=new Date(yy, mm-1, dd);
+            if(d.getFullYear()===yy && d.getMonth()===(mm-1) && d.getDate()===dd) return d;
+            return null;
+        }
+
+        function dateFromInput(value){
+            if(!value) return null;
+            const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if(!m) return null;
+            const yy=+m[1], mm=+m[2], dd=+m[3];
+            const d=new Date(yy, mm-1, dd);
+            if(d.getFullYear()===yy && d.getMonth()===(mm-1) && d.getDate()===dd) return d;
+            return null;
+        }
+
+        /* ===== Enhanced functions from standalone tool ===== */
+        function parseTimeToFraction(v){
+            if(v===undefined || v===null) return null;
+            let s=String(v).trim();
+            if(!s) return null;
+
+            // Excel numeric fraction (0..1) or seconds
+            if(/^[0-9]+(\.[0-9]+)?$/.test(s)){
+                const n=Number(s);
+                if(n>=0 && n<1) return n;
+                if(n>1 && n<86400) return n/86400;
+            }
+
+            // 24h HH:MM[:SS]
+            let m=s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+            if(m){
+                const hh=+m[1], mm=+m[2], ss=+(m[3]||0);
+                if(hh<24 && mm<60 && ss<60) return (hh*3600+mm*60+ss)/86400;
+            }
+
+            // 12h with AM/PM
+            m=s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AP]M)$/i);
+            if(m){
+                let hh=+m[1], mm=+m[2], ss=+(m[3]||0);
+                const ap=m[4].toUpperCase();
+                if(ap==="PM" && hh<12) hh+=12;
+                if(ap==="AM" && hh===12) hh=0;
+                if(hh<24 && mm<60 && ss<60) return (hh*3600+mm*60+ss)/86400;
+            }
+            return null;
+        }
+
+        const MAP_EXTRA_LOBS=[/ECVT/i,/ECVT\s*Tunnel/i,/DT\s*0?4/i,/Backfill\s*Secondary\s*grout/i,/MAR\s*263\s*Grout\s*Trial/i,/TSS-UC-S5/i];
+        const MAP_EXTRA_TAN=[/\bR18(4[1-9]|5[0-9]|60)\b/i,/\bR185[1-9]\b/i,/\bR1860\b/i,/\bTBM\b/i]; // R1841–R1860 + TBM
+        const MAP_EXTRA_LOBS_MH=[/^MH-/i]; // starts with MH-
+
+        function inferSourceFromText(txt){
+            const t = String(txt||"");
+            for(const rx of MAP_EXTRA_LOBS){
+                if(rx.test(t)) return "LOBS";
+            }
+            for(const rx of MAP_EXTRA_LOBS_MH){
+                if(rx.test(t)) return "LOBS";
+            }
+            for(const rx of MAP_EXTRA_TAN){
+                if(rx.test(t)) return "TAN";
+            }
+            return "";
+        }
+
+        function inferSourceForAnyRow(row){
+            const existing = String(row["Source Code"]||"").trim();
+            if(existing) return existing;
+            const loc=row["Location Description"]||"", rem=row["Remarks"]||"";
+            const built=(loc+" "+rem).trim();
+            const fromTxt=inferSourceFromText(built);
+            if(fromTxt) return fromTxt;
+            return "";
+        }
+
+        function propagateTRMappings(rows){
+            const trToSC=new Map();
+            for(const r of rows){
+                const sc=String(r["Source Code"]||"").trim();
+                const tr=findTR(r["Location Description"]||r["Remarks"]||"");
+                if(sc && tr){
+                    if(!trToSC.has(tr)) trToSC.set(tr, sc);
+                }
+            }
+            let updates=0;
+            for(const r of rows){
+                if(String(r["Source Code"]||"").trim()) continue;
+                const tr=findTR(r["Location Description"]||r["Remarks"]||"");
+                if(tr && trToSC.has(tr)){
+                    r["Source Code"]=trToSC.get(tr);
+                    updates++;
+                }
+            }
+            return updates;
+        }
+
+        function autoFillSourceCodesAll(rows){
+            let filled=0;
+            for(const r of rows){
+                if(String(r["Source Code"]||"").trim()) continue;
+                const inf=inferSourceForAnyRow(r);
+                if(inf){
+                    r["Source Code"]=inf;
+                    filled++;
+                }
+            }
+            filled+=propagateTRMappings(rows);
+            return filled;
+        }
+
+        // FIXED: Date pivot function for filtering
+        function getPivotDateDMY(row){
+            const candidates=[row["Date"],row["Date Batched"],row["Date Tested"]];
+            for(const c of candidates){
+                const s=normalizeToDMYString(c);
+                if(s){
+                    const d=dateFromDMYString(s);
+                    if(d) return d;
+                }
+            }
+            return null;
+        }
+
+        function autoFillType(rows){
+            const toBlank = v => (v==null ? "" : String(v).trim());
+            let filled = 0;
+            for (const r of rows){
+                const currType = toBlank(r["Type"]);
+                if (currType) continue; // leave existing values alone
+
+                const pc = toBlank(r["Product Code"]).toLowerCase();
+                const remarks = toBlank(r["Remarks"]).toLowerCase();
+                const loc = toBlank(r["Location Description"]).toLowerCase();
+
+                // Grout products
+                if (pc.includes("infragrout") || pc.includes("master roc mg 01") || pc.includes("mono component")) {
+                    r["Type"] = "GROCUBE";
+                    filled++;
+                    continue;
+                }
+
+                // Grout text clues
+                if (remarks.includes("grout") || loc.includes("grout")) {
+                    r["Type"] = "GROCUBE";
+                    filled++;
+                    continue;
+                }
+
+                // Concrete mix mappings
+                if (pc === "mix - a - gp" || pc === "mix-a-gp") {
+                    r["Type"] = "COMP100";
+                    filled++;
+                    continue;
+                }
+            }
+            return filled;
+        }
+
+        function rowsToSheet_withTimeFix(rows){
+            // 1) clone rows, set Date Batched = Date, normalize dates, and uppercase Source Code
+            const out = rows.map(r=>{
+                const z = {...r};
+                if("Date" in z){
+                    const s = normalizeToDMYString(z["Date"]);
+                    if(s) z["Date"] = s;
+                    // enforce rule: Date Batched = Date
+                    z["Date Batched"] = s || z["Date Batched"];
+                }
+                if("Date Tested" in z){
+                    const sT = normalizeToDMYString(z["Date Tested"]);
+                    if(sT) z["Date Tested"] = sT;
+                }
+                // normalize Source Code casing
+                if (z["Source Code"]) {
+                    z["Source Code"] = String(z["Source Code"]).trim().toUpperCase();
+                }
+                return z;
+            });
+
+            // 2) write sheet
+            const ws = XLSX.utils.json_to_sheet(out, {defval:"", raw:true});
+
+            // 3) convert times to real Excel times (hh:mm)
+            const header = XLSX.utils.sheet_to_json(ws, {header:1})[0] || [];
+            const timeCols = ["Time Sampled","Time Batched","Time Moulded"]
+                .map(h => header.indexOf(h))
+                .filter(i => i >= 0);
+
+            if(ws['!ref'] && timeCols.length){
+                const range = XLSX.utils.decode_range(ws['!ref']);
+                for(const ci of timeCols){
+                    for(let r=range.s.r+1; r<=range.e.r; r++){
+                        const addr = XLSX.utils.encode_cell({r, c:ci});
+                        const cell = ws[addr];
+                        const raw = (cell && cell.v!=null) ? String(cell.v).trim() : "";
+                        if(!raw){
+                            ws[addr] = {t:'s', v:""};
+                            continue;
+                        }
+                        const frac = parseTimeToFraction(raw);
+                        ws[addr] = (frac==null) ? {t:'s', v:raw} : {t:'n', v:frac, z:"hh:mm"};
+                    }
+                }
+            }
+            return ws;
+        }
+
+        function rowsToSheet_WithExcelDates(rows){
+            const out = rows.map(r=>{
+                const o={};
+                BORAL_HEADERS.forEach(h=> o[h]=(h in r? r[h] : "") );
+                ["Date","Date Batched","Date Tested"].forEach(k=>{
+                    o[k]=normalizeToDMYString(o[k]);
+                });
+                return o;
+            });
+
+            const ws = XLSX.utils.json_to_sheet(out, {header: BORAL_HEADERS, raw:true});
+
+            const dateCols = ["Date","Date Batched","Date Tested"].map(h=> BORAL_HEADERS.indexOf(h)).filter(i=>i>=0);
+            if(ws['!ref']){
+                const range = XLSX.utils.decode_range(ws['!ref']);
+                for(const ci of dateCols){
+                    for(let r = range.s.r+1; r <= range.e.r; r++){
+                        const addr = XLSX.utils.encode_cell({r, c:ci});
+                        const s = (ws[addr] && ws[addr].v != null) ? String(ws[addr].v).trim() : "";
+                        if(!s){
+                            ws[addr] = { t:'s', v:"" };
+                            continue;
+                        }
+                        const serial = dmyStringToSerial(s);
+                        ws[addr] = (serial==null) ? { t:'s', v:s } : { t:'n', v:serial, z:"dd/mm/yyyy" };
+                    }
+                }
+            }
+            return ws;
+        }
+
+        function tempRowsToSheet(rows){
+            const out = rows.map(r=>({
+                "Date": normalizeToDMYString(r["Date"]),
+                "Source Code": r["Source Code"]||"",
+                "Docket": r["Docket"]||"",
+                "PourNo": r["PourNo"]||"",
+                "Type": r["Type"]||"",
+                "Product Code": r["Product Code"]||"",
+                "Date Batched": normalizeToDMYString(r["Date Batched"]) || normalizeToDMYString(r["Date"]),
+                "Age Days": (r["Age Days"]!==""? intOrBlank(r["Age Days"]) : ""),
+                "Concrete Temp": (r["Concrete Temp"]!==""? numOrBlankTemp(r["Concrete Temp"]) : ""),
+                "Ambient Temp": (r["Ambient Temp"]!==""? numOrBlankTemp(r["Ambient Temp"]) : ""),
+                "Location Description": r["Location Description"]||""
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(out, {header: TEMP_HEADERS, raw:true});
+
+            const dateCols = ["Date","Date Batched"].map(h=> TEMP_HEADERS.indexOf(h)).filter(i=>i>=0);
+            if(ws['!ref']){
+                const range = XLSX.utils.decode_range(ws['!ref']);
+                for(const ci of dateCols){
+                    for(let r = range.s.r+1; r <= range.e.r; r++){
+                        const addr = XLSX.utils.encode_cell({r, c:ci});
+                        const s = (ws[addr] && ws[addr].v != null) ? String(ws[addr].v).trim() : "";
+                        if(!s){
+                            ws[addr] = { t:'s', v:"" };
+                            continue;
+                        }
+                        const serial = dmyStringToSerial(s);
+                        ws[addr] = (serial==null) ? { t:'s', v:s } : { t:'n', v:serial, z:"dd/mm/yyyy" };
+                    }
+                }
+            }
+            return ws;
+        }
+
+        function writeWB(sheets, name){
+            const wb = XLSX.utils.book_new();
+            for(const [title, ws] of sheets){
+                XLSX.utils.book_append_sheet(wb, ws, title);
+            }
+            XLSX.writeFile(wb, name);
+            state.filesExported++;
+            state.lastExport = name;
+            refreshKPI();
+            addHistory(name);
+            celebrate();
+        }
+
+        /* ===== Concrete mapping ===== */
+        const S = {
+            wr:["WR #","Work Request","WR"],
+            docket:["Docket #","Docket","Ticket","Ticket #"],
+            client:["Client Name","Client"],
+            project:["Project Name","Project"],
+            plant:["Plant"],
+            sampledDate:["Sampled Date","Date Sampled","Date"],
+            sampleId:["Sample #","Sample ID","SampleID"],
+            sampleSuffix:["Sample (eg A,B,C)","Sample eg A,B,C","Sample (A/B/C)"],
+            mould:["Mould Number","Mold Number"],
+            class:["Class"],
+            mix:["Supplier Mix Code","Mix Code","MixCode"],
+            dateBatched:["Date Batched"],
+            timeSampled:["Time Sampled"],
+            timeBatched:["Time Batched"],
+            timeMoulded:["Time Moulded"],
+            dateTested:["Date Tested","Test Date"],
+            ageDays:["Age Days","Age (days)","Age Day"],
+            avgMPUV:["Average Mass per Unit Volume"],
+            addMPUV:["Additional Mass per Unit Volume"],
+            avgDiam:["Average Diameter","Avg Diameter","Diameter"],
+            height:["Height of Specimen","Avg Height","Height"],
+            loadSize:["Load size (m3)","Load Size"],
+            progress:["Progress (m3)","Progress Load"],
+            ordSlump:["Ordered Slump","Design Slump"],
+            slump:["Slump","Measured Slump"],
+            strength:["Strength","Compressive Strength"],
+            compact:["Compact Method"],
+            air:["Air Content","Measured Air","Air Cured"],
+            concTemp:["Concrete Temp","Concrete Temperature"],
+            ambTemp:["Ambient Temp","Ambient Temperature"],
+            breakType:["Break Type","Failure Mode"],
+            comments:["Comments","Worksheet Comments","Pour Location / Remarks","Remarks"],
+            truck:["Truck #","Truck"],
+            clientRef:["Client Ref. #","Client Ref #"],
+            wrLocation:["Work Request Location","Sampling Location"," Worksheet Comments","Worksheet Comments"]
+        };
+
+        function buildConcreteBoral(rowsCyl, rowsField){
+            const fieldMap = new Map();
+            for(const r of rowsField){
+                const key = String(getV(r,S.wr)||"").trim();
+                if(!key) continue;
+                if(!fieldMap.has(key)) fieldMap.set(key,{});
+                const tgt = fieldMap.get(key);
+                for(const k of Object.keys(r)){
+                    const v = String(r[k]??"").trim();
+                    if(v && !(k in tgt)) tgt[k]=v;
+                }
+            }
+
+            const out=[];
+            for(const r of rowsCyl){
+                const wr = String(getV(r,S.wr)||"").trim();
+                const f = fieldMap.get(wr)||{};
+                const plant = first(getV(r,S.plant), f["Plant"]);
+                const client = first(getV(r,S.client), f["Client"]);
+                const project = first(getV(r,S.project), f["Project Name"]);
+                const pourFromRef = first(...S.clientRef.map(k=>f[k]));
+                const trFromText = first(
+                    findTR(getV(r,S.comments)),
+                    findTR(f["Worksheet Comments"]),
+                    findTR(f["Sampling Location"])
+                );
+                const pourNo = first(pourFromRef, trFromText, (wr? `TR ${wr}`: "") );
+                const sampleNo = getV(r,S.sampleId) || "";
+                const sampleSuf = getV(r,S.sampleSuffix) || "";
+                const mould = getV(r,S.mould) || "";
+                const sampleID = sampleNo || mould;
+                const specID = (sampleNo? (sampleNo + (sampleSuf||"")) : mould);
+
+                const density = (getV(r,S.avgMPUV) ? intOrBlank(getV(r,S.avgMPUV)) : "");
+                const muvol = (getV(r,S.addMPUV) ? intOrBlank(getV(r,S.addMPUV)) : "");
+                const strength= (getV(r,S.strength) ? numOrBlank(getV(r,S.strength)) : "");
+
+                const avgDia = numOrBlank(getV(r,S.avgDiam));
+                const height = numOrBlank(getV(r,S.height));
+                const loadSz = numOrBlank(getV(r,S.loadSize));
+                const progLd = numOrBlank(getV(r,S.progress));
+                const desSl = numOrBlank(first(getV(r,S.ordSlump), f["Ordered Slump"]));
+                const measSl = numOrBlank(first(getV(r,S.slump), f["Slump"]));
+
+                // FIXED: Use temperature-specific function for temps
+                const cTemp = numOrBlankTemp(first(getV(r,S.concTemp), f["Concrete Temperature"]));
+                const aTemp = numOrBlankTemp(first(getV(r,S.ambTemp), f["Ambient Temperature"]));
+
+                const docketStr = first(getV(r,S.docket), f["Docket #"]);
+                const truckFromField = first(f["Truck"], f["Truck #"]);
+                const remarksFromField = first(f["Remarks"], f["Worksheet Comments"], f["Pour Location / Remarks"]);
+
+                const row = {
+                    "Date": first(getV(r,S.sampledDate), f["Date Sampled"]),
+                    "Source Code": mapSourceCode(plant),
+                    "Docket": docketStr,
+                    "ClientName": client,
+                    "ProjectName": project,
+                    "PourNo": pourNo,
+                    "Lots": "",
+                    "SampleID": sampleID,
+                    "Specimen ID": specID,
+                    "Type": first(getV(r,S.class)) || "COMP100",
+                    "Product Code": first(getV(r,S.mix), f["Supplier Mix Code"]),
+                    "Date Batched": first(getV(r,S.dateBatched)),
+                    "Time Sampled": first(getV(r,S.timeSampled)),
+                    "Time Batched": first(getV(r,S.timeBatched)),
+                    "Time Moulded": first(getV(r,S.timeMoulded)),
+                    "Date Tested": first(getV(r,S.dateTested)),
+                    "Age Days": intOrBlank(getV(r,S.ageDays)),
+                    "Age Hours": "",
+                    "Init Curing Hrs": "",
+                    "Std Curing Days": "",
+                    "Grade": "",
+                    "Density": density,
+                    "Mass Unit Vol": muvol,
+                    "Dim1": avgDia,
+                    "Dim2": height,
+                    "Load Size": loadSz,
+                    "Progress Load": progLd,
+                    "Des slmp": desSl,
+                    "Measured Slump": measSl,
+                    "Second Slump": "",
+                    "Avg Diameter": avgDia,
+                    "Avg Height": height,
+                    "Strength": strength,
+                    "Compact Method": first(getV(r,S.compact)),
+                    "Measured Air": (getV(r,S.air) ? numOrBlank(getV(r,S.air)) : ""),
+                    "Concrete Temp": cTemp,
+                    "Ambient Temp": aTemp,
+                    "Failure Mode": first(getV(r,S.breakType)),
+                    "Cap": first(getV(r,S.mould)) ? String(getV(r,S.mould)) : "",
+                    "Marks": "",
+                    "Location Description": String(first(
+                        f["Pour Location / Remarks"],
+                        f["Worksheet Comments"],
+                        f["Sampling Location"],
+                        getV(r,S.comments)
+                    )||"").trim(),
+                    "Truck": first(truckFromField, getV(r,S.truck)),
+                    "Remarks": first(remarksFromField, getV(r,S.comments), f["Sampling Location"]),
+                    "Rounded Density (U)": (density==="" ? "" : round10UpOrBlank(density)),
+                    "Rounded MPUV (V)": (muvol==="" ? "" : intOrBlank(muvol)),
+                    "Rounded Strength (AE)": (strength==="" ? "" : round1OrBlank(strength))
+                };
+                out.push(row);
+            }
+            return out;
+        }
+
+        /* ===== Grout mapping + SC inference ===== */
+        const G = {
+            wr:["WR #","Work Request","WR"],
+            docket:["Docket #","Docket","Ticket","Ticket #"],
+            client:["Client Name","Client"],
+            project:["Project Name","Project"],
+            sampledDate:["Sampled Date","Date Sampled","Date"],
+            timeSampled:["Time Sampled"],
+            timeBatched:["Time Batched"],
+            timeMoulded:["Time Moulded"],
+            dateTested:["Date Tested","Test Date"],
+            ageDays:["Age Days","Age (days)","Age Day"],
+            sampleId:["Sample #","Sample ID","SampleID"],
+            sampleSuffix:["Sample (eg A,B,C)","Sample eg A,B,C","Sample (A/B/C)"],
+            mix:["Supplier Mix Code","Mix Code","MixCode"],
+            avgMPUV:["Average Mass per Unit Volume"],
+            addMPUV:["Additional Mass per Unit Volume"],
+            avgDiam:["Average Diameter","Avg Diameter","Diameter"],
+            height:["Height of Specimen","Avg Height","Height"],
+            loadSize:["Load size (m3)","Load size (m³)","Load Size"],
+            progress:["Progress (m3)","Progress (m³)","Progress Load"],
+            conc:["Consistency"],
+            concTemp:["Concrete Temp","Concrete Temperature"],
+            ambTemp:["Ambient Temp","Ambient Temperature"],
+            failure:["Break Type","Failure Mode"],
+            grade:["Grade"],
+            mould:["Mould Number","Mold Number"],
+            remarks:["Comments"],
+            locdesc:["Pour Location / Remarks","Work Request Location","Sampling Location"],
+            truck:["Truck #","Truck"],
+            exportClientRef:["Client Ref. #","Client Ref #"]
+        };
+
+        const MAP_TAN=[/\bR19(2[1-9]|30)\b/i,/\bTBM3\b/i,/\bHRT-?01\b/i,/Intake\s*C3\s*Grout\s*Testing/i,/S2-CIV-HT-HTU-LOT/i,/S2-CIV-IG-TNI-LOT/i,/Grout\s*Plant[_\s]?32/i,/Completion\s*of\s*Backfill/i];
+        const MAP_MAR=[/S2-CIV-CT-MAD-LOT/i,/S2-CIV-SS-HSS-LOT/i,/Marica\s*ADIT\s*Portal/i];
+        const MAP_LOBS=[/\bJunction\b/i,/\bTalbingo\b/i,/\bTH\b|\bTransforming\s*Hall\b/i,/\bECV\b/i,/\bCTB\b/i,/\bMH\b|\bMachine\s*Hall\b/i,/\bPenstock\b/i,/\bTR1\b.*\bTBM2\b/i,/\bTalbingo\s*Junction\b/i,/\bDT0?3\b/i,/\bD&?B\b.*\bTunnel\b/i,/\bPenstock\s*5\b/i];
+        const ONLY_TR=/^(?=.*\bTR\s*\d+\b)(?!.*(Junction|Talbingo|TBM3|HRT|R19|HT-HTU|IG-TNI|CT-MAD|SS-HSS|Marica|ADIT|Portal|ECV|CTB|Machine|Penstock|DT|D&?B|Tunnel|Grout\s*Plant|Intake|Completion)).*$/i;
+
+        function inferGroutSourceIfMissing(existing, location, remarks){
+            const sc = String(existing||"").trim();
+            if(sc) return sc;
+            const combined = `${String(location||"").trim()} ${String(remarks||"").trim()}`.trim();
+            if(!combined) return "";
+            if(ONLY_TR.test(combined)) return "";
+            for(const rx of MAP_TAN){
+                if(rx.test(combined)) return "TAN";
+            }
+            for(const rx of MAP_MAR){
+                if(rx.test(combined)) return "MAR";
+            }
+            for(const rx of MAP_LOBS){
+                if(rx.test(combined)) return "LOBS";
+            }
+            return "";
+        }
+
+        function buildGroutBoral(rowsCube, rowsExport){
+            const mapRef = new Map();
+            for(const r of rowsExport||[]){
+                const wr = String(getV(r,G.wr)||"").trim();
+                const pref = first(...G.exportClientRef.map(k=>r[k]));
+                if(wr && pref && !mapRef.has(wr)) mapRef.set(wr, pref);
+            }
+
+            const out=[];
+            for(const r of rowsCube){
+                const wr = String(getV(r,G.wr)||"").trim();
+                const sampleNo = getV(r,G.sampleId) || "";
+                const sampleSuf = getV(r,G.sampleSuffix) || "";
+                const specID = sampleNo + (sampleSuf||"");
+
+                const density = (getV(r,G.avgMPUV) ? numOrBlank(getV(r,G.avgMPUV)) : "");
+                const muvol = (getV(r,G.addMPUV) ? numOrBlank(getV(r,G.addMPUV)) : "");
+                const strength = (("Strength" in r) ? numOrBlank(r["Strength"]) : "");
+
+                const avgDia = numOrBlank(getV(r,G.avgDiam));
+                const height = numOrBlank(getV(r,G.height));
+                const loadSz = numOrBlank(getV(r,G.loadSize));
+                const progLd = numOrBlank(getV(r,G.progress));
+                const measSl = numOrBlank(getV(r,G.conc));
+
+                // FIXED: Use temperature-specific function for temps
+                const cTemp = numOrBlankTemp(getV(r,G.concTemp));
+                const aTemp = numOrBlankTemp(getV(r,G.ambTemp));
+
+                const sampledTxt = first(getV(r,G.sampledDate));
+                const testedTxt = first(getV(r,G.dateTested));
+
+                const baseLoc = first(getV(r,G.locdesc), getV(r,G.remarks)).trim();
+                const builtLoc = (()=>{
+                    const date1 = normalizeToDMYString(sampledTxt);
+                    const date2 = normalizeToDMYString(testedTxt);
+                    const age = intOrBlank(getV(r,G.ageDays));
+                    const parts = [];
+                    if(baseLoc) parts.push(baseLoc);
+                    if(measSl!=="") parts.push(`${measSl}`);
+                    const segs = [];
+                    if(date1) segs.push(`Grout Testing ${date1}`);
+                    if(age!=="") segs.push(`${age}`);
+                    if(date2) segs.push(`Grout Testing ${date2}`);
+                    if(segs.length) parts.push(segs.join("_ "));
+                    return parts.join("_ ");
+                })();
+
+                const docketStr = first(getV(r,G.docket));
+                const remarksTxt = first(getV(r,G.remarks));
+                const existingSC = first(r["Source Code"]);
+                const inferredSC = inferGroutSourceIfMissing(existingSC, builtLoc, remarksTxt);
+
+                const row = {
+                    "Date": normalizeToDMYString(sampledTxt),
+                    "Source Code": inferredSC,
+                    "Docket": docketStr,
+                    "ClientName": first(getV(r,G.client)),
+                    "ProjectName": first(getV(r,G.project)),
+                    "PourNo": (mapRef.get(wr) || ""),
+                    "Lots": "",
+                    "SampleID": sampleNo,
+                    "Specimen ID": specID,
+                    "Type": "",
+                    "Product Code": first(getV(r,G.mix)),
+                    "Date Batched": normalizeToDMYString(sampledTxt),
+                    "Time Sampled": first(getV(r,G.timeSampled)),
+                    "Time Batched": first(getV(r,G.timeBatched)),
+                    "Time Moulded": first(getV(r,G.timeMoulded)),
+                    "Date Tested": normalizeToDMYString(testedTxt),
+                    "Age Days": intOrBlank(getV(r,G.ageDays)),
+                    "Age Hours": "",
+                    "Init Curing Hrs": "",
+                    "Std Curing Days": "",
+                    "Grade": first(getV(r,G.grade)) || "",
+                    "Density": density,
+                    "Mass Unit Vol": muvol,
+                    "Dim1": avgDia,
+                    "Dim2": height,
+                    "Load Size": loadSz,
+                    "Progress Load": progLd,
+                    "Des slmp": "",
+                    "Measured Slump": measSl,
+                    "Second Slump": "",
+                    "Avg Diameter": avgDia,
+                    "Avg Height": height,
+                    "Strength": strength,
+                    "Compact Method": "",
+                    "Measured Air": "",
+                    "Concrete Temp": cTemp,
+                    "Ambient Temp": aTemp,
+                    "Failure Mode": first(getV(r,G.failure)),
+                    "Cap": "",
+                    "Marks": first(getV(r,G.mould)),
+                    "Location Description": builtLoc,
+                    "Truck": "",
+                    "Remarks": remarksTxt,
+                    "Rounded Density (U)": (density==="" ? "" : round10UpOrBlank(density)),
+                    "Rounded MPUV (V)": (muvol==="" ? "" : intOrBlank(muvol)),
+                    "Rounded Strength (AE)": (strength==="" ? "" : round1OrBlank(strength))
+                };
+                out.push(row);
+            }
+            return out;
+        }
+
+        /* ===== Weekly helpers ===== */
+        function normalizeRowDatesToDMY(r){
+            const z={...r};
+            ["Date","Date Batched","Date Tested"].forEach(k=>{
+                z[k]=normalizeToDMYString(z[k]);
+            });
+            return z;
+        }
+
+        function isTempRow(r){
+            const hasPour = String(r["PourNo"]||"").trim()!=="";
+            const ct = r["Concrete Temp"];
+            const at = r["Ambient Temp"];
+            // Only consider it a temp row if there are actual non-zero temperature values
+            const hasTemp = (ct !== "" && ct !== null && ct !== undefined && ct !== 0 && ct !== "0") || 
+                            (at !== "" && at !== null && at !== undefined && at !== 0 && at !== "0");
+            return hasPour && hasTemp;
+        }
+
+        function dedupeTemp(rows){
+            const seenPour = new Set(), pass1=[];
+            for(const r of rows){
+                const p=String(r["PourNo"]||"").trim();
+                if(p){
+                    if(!seenPour.has(p)){seenPour.add(p); pass1.push(r);}
+                } else pass1.push(r);
+            }
+
+            const seen = new Set(), out=[];
+            for(const r of pass1){
+                const k=[normalizeToDMYString(r["Date"]), String(r["PourNo"]||"").trim(), String(r["Age Days"]||"").trim(), String(r["Type"]||"").trim(), String(r["Product Code"]||"").trim()].join("|");
+                if(!seen.has(k)){
+                    seen.add(k);
+                    out.push(r);
+                }
+            }
+            return out;
+        }
+
+        function autoFillMissingSourceCodes(rows){
+            let filled = 0;
+            for(const r of rows){
+                const current = String(r["Source Code"]||"").trim();
+                if(current) continue;
+
+                const loc = r["Location Description"] || "";
+                const rem = r["Remarks"] || "";
+                const inferred = inferGroutSourceIfMissing("", loc, rem);
+                if(inferred){
+                    r["Source Code"] = inferred;
+                    filled++;
+                }
+            }
+            return filled;
+        }
+
+        /* ================= UI wiring (drag & drop + clicks) ================= */
+        function wireDrop(zoneId, fileInputId, badgeId){
+            const zone = document.getElementById(zoneId);
+            const input = document.getElementById(fileInputId);
+
+            zone.addEventListener('click', ()=> input.click());
+
+            ;['dragenter','dragover'].forEach(ev=>
+                zone.addEventListener(ev, e=>{
+                    e.preventDefault();
+                    e.stopPropagation();
+                    zone.classList.add('dragover');
+                }));
+
+            ;['dragleave','drop'].forEach(ev=>
+                zone.addEventListener(ev, e=>{
+                    e.preventDefault();
+                    e.stopPropagation();
+                    zone.classList.remove('dragover');
+                }));
+
+            zone.addEventListener('drop', e=>{
+                const f = e.dataTransfer.files[0];
+                if(f){
+                    input.files = e.dataTransfer.files;
+                    if(badgeId) badge(badgeId, f.name, 'ok');
+                    onFileChange();
+                }
+            });
+
+            input.addEventListener('change', ()=>{
+                if(badgeId) badge(badgeId, input.files[0]?.name || 'waiting', input.files[0]?'ok':'warn');
+                onFileChange();
+            });
+        }
+
+        function badge(id,t,cls){
+            const el=document.getElementById(id);
+            if(el){
+                el.textContent=t;
+                el.className='badge '+(cls||'');
+            }
+        }
+
+        function onFileChange(){
+            document.getElementById('btn-conc').disabled = !(document.getElementById('f-cyl').files[0] && document.getElementById('f-field').files[0]);
+            document.getElementById('btn-grout').disabled = !document.getElementById('f-cube').files[0];
+        }
+
+        wireDrop('drop-cyl','f-cyl','b-cyl');
+        wireDrop('drop-field','f-field','b-field');
+        wireDrop('drop-cube','f-cube','b-cube');
+        wireDrop('drop-gse','f-gse','b-gse');
+
+        /* ================= Buttons: build files ================= */
+        const logA = (m)=>{
+            const el=document.getElementById('logA');
+            el.textContent += '\n'+m;
+            el.scrollTop=el.scrollHeight;
+            const mir=document.getElementById('logA_mirror');
+            if(mir){
+                mir.textContent = el.textContent;
+                mir.scrollTop=mir.scrollHeight;
+            }
+        };
+
+        const logB = (m)=>{
+            const el=document.getElementById('logB');
+            el.textContent += '\n'+m;
+            el.scrollTop=el.scrollHeight;
+            const mir=document.getElementById('logB_mirror');
+            if(mir){
+                mir.textContent = el.textContent;
+                mir.scrollTop=mir.scrollHeight;
+            }
+        };
+
+        document.getElementById('btn-conc').addEventListener('click', async ()=>{
+            try{
+                const f1 = document.getElementById('f-cyl').files[0];
+                const f2 = document.getElementById('f-field').files[0];
+                if(!f1 || !f2){
+                    alert('Please add both files.');
+                    return;
+                }
+
+                showOverlay('Reading Concrete pair…');
+                setProgress(10);
+
+                const [rowsCyl, rowsField] = await Promise.all([loadAny(f1), loadAny(f2)]);
+
+                setProgress(35,'Mapping → Boral…');
+                const mapped = buildConcreteBoral(rowsCyl, rowsField);
+                state.concreteCount += mapped.length;
+                state.processedRows += mapped.length;
+
+                setProgress(65,'Converting dates & writing…');
+                const ws = rowsToSheet_WithExcelDates(mapped);
+
+                setProgress(85,'Saving file…');
+                writeWB([["Boral", ws]], "Concrete_Boral.xlsx");
+
+                setProgress(100,'Done');
+                hideOverlay();
+                logA('✅ Concrete_Boral.xlsx written ('+mapped.length+' rows).');
+                refreshKPI();
+            }catch(e){
+                console.error(e);
+                hideOverlay();
+                alert('Concrete build error: '+(e.message||e));
+            }
+        });
+
+        document.getElementById('btn-grout').addEventListener('click', async ()=>{
+            try{
+                const f1 = document.getElementById('f-cube').files[0];
+                const f2 = document.getElementById('f-gse').files[0];
+
+                showOverlay('Reading Grout files…');
+                setProgress(10);
+
+                const [rowsCube, rowsExport] = await Promise.all([loadAny(f1), loadAny(f2)]);
+
+                setProgress(35,'Mapping → Boral…');
+                const mapped = buildGroutBoral(rowsCube||[], rowsExport||[]);
+                state.groutCount += mapped.length;
+                state.processedRows += mapped.length;
+
+                setProgress(65,'Converting dates & writing…');
+                const ws = rowsToSheet_WithExcelDates(mapped);
+
+                setProgress(85,'Saving file…');
+                writeWB([["Boral", ws]], "Grout_Boral.xlsx");
+
+                setProgress(100,'Done');
+                hideOverlay();
+                logA('✅ Grout_Boral.xlsx written ('+mapped.length+' rows).');
+                refreshKPI();
+            }catch(e){
+                console.error(e);
+                hideOverlay();
+                alert('Grout build error: '+(e.message||e));
+            }
+        });
+
+        /* ================= Weekly (B) - FIXED DATE FILTERING ================= */
+        function markBadge(inputId, badgeId){
+            const f=document.getElementById(inputId).files[0];
+            badge(badgeId, f?f.name:'none', f?'ok':'');
+        }
+
+        ['f-boralc','f-boralg','f-lobs','f-polo'].forEach(id=>
+            document.getElementById(id).addEventListener('change', ()=>{
+                if(id==='f-boralc') markBadge('f-boralc','b-boralc');
+                if(id==='f-boralg') markBadge('f-boralg','b-boralg');
+                if(id==='f-lobs') markBadge('f-lobs','b-lobs');
+                if(id==='f-polo') markBadge('f-polo','b-polo');
+            }));
+
+        document.getElementById('btn-weekly').addEventListener('click', async ()=>{
+            try{
+                logB("Reading input files…");
+                const [cBoral,gBoralRaw,lobsAll,poloAll]=await Promise.all([
+                    document.getElementById('f-boralc').files[0]?loadAny(document.getElementById('f-boralc').files[0]):[],
+                    document.getElementById('f-boralg').files[0]?loadAny(document.getElementById('f-boralg').files[0]):[],
+                    document.getElementById('f-lobs').files[0]?loadAny(document.getElementById('f-lobs').files[0]):[],
+                    document.getElementById('f-polo').files[0]?loadAny(document.getElementById('f-polo').files[0]):[]
+                ]);
+
+                // Remove all Docket numbers from GROUT input (set to blank)
+                const gBoral = gBoralRaw.map(r => {
+                    const z = {...r};
+                    z["Docket"] = ""; // ensure Docket is blank for all grout rows
+                    return z;
+                });
+
+                const all=[...cBoral,...gBoral,...lobsAll,...poloAll];
+                logB("Total raw rows: "+all.length);
+
+                const startDate=dateFromInput(document.getElementById('b-start').value);
+                const endDate=dateFromInput(document.getElementById('b-end').value);
+
+                // FIXED: Improved date filtering logic
+                const beforeCount=all.length;
+                const filtered=all.filter(row=>{
+                    // If no date range specified, include all rows
+                    if(!startDate && !endDate) return true;
+                    
+                    const d=getPivotDateDMY(row);
+                    // If no valid date found in row, exclude it when filtering is active
+                    if(!d && (startDate || endDate)) return false;
+                    // If no valid date but no filtering, include it
+                    if(!d) return true;
+                    
+                    // Apply date range filtering
+                    if(startDate && d < startDate) return false;
+                    if(endDate && d > endDate) return false;
+                    return true;
+                });
+
+                const rangeText = (startDate || endDate) ? 
+                    `Range: ${document.getElementById('b-start').value||'–'} → ${document.getElementById('b-end').value||'–'}` : 
+                    "Range: ALL";
+                logB(`${rangeText} | Rows before filter: ${beforeCount} → after filter: ${filtered.length}`);
+
+                const filledSC = autoFillSourceCodesAll(filtered);
+                logB(`Source Code auto-filled on ${filledSC} rows`);
+
+                // Type autofill (only blanks)
+                const filledType = autoFillType(filtered);
+                logB(`Type auto-filled on ${filledType} rows`);
+
+                const wsMain = rowsToSheet_withTimeFix(filtered);
+                writeWB([["All Sites (Main)",wsMain]],"All_Sites_Main_Data.xlsx");
+                logB("✅ All_Sites_Main_Data.xlsx written with "+filtered.length+" rows");
+
+                // Temperature Extract
+                setProgress(85,'Building Temperature Extract…');
+                const tempRows = (function dedupe(rows){
+                    const isTemp = r => {
+                        const hasPour = String(r["PourNo"]||"").trim()!=="";
+                        const ct = r["Concrete Temp"];
+                        const at = r["Ambient Temp"];
+                        // Only consider it a temp row if there are actual non-zero temperature values
+                        const hasTemp = (ct !== "" && ct !== null && ct !== undefined && ct !== 0 && ct !== "0") || 
+                                        (at !== "" && at !== null && at !== undefined && at !== 0 && at !== "0");
+                        return hasPour && hasTemp;
+                    };
+                    const pass = rows.filter(isTemp);
+
+                    const seenPour = new Set(), pass1=[];
+                    for(const r of pass){
+                        const p=String(r["PourNo"]||"").trim();
+                        if(p){
+                            if(!seenPour.has(p)){seenPour.add(p); pass1.push(r);}
+                        } else pass1.push(r);
+                    }
+
+                    const seen = new Set(), out=[];
+                    for(const r of pass1){
+                        const k=[normalizeToDMYString(r["Date"]), String(r["PourNo"]||"").trim(), String(r["Age Days"]||"").trim(), String(r["Type"]||"").trim(), String(r["Product Code"]||"").trim()].join("|");
+                        if(!seen.has(k)){
+                            seen.add(k);
+                            out.push(r);
+                        }
+                    }
+                    return out;
+                })(filtered);
+
+                const wsTempMain = tempRowsToSheet(tempRows);
+
+                // Build site-specific temperature sheets
+                const bySite = {
+                    TAN: tempRows.filter(r=>{
+                        const pn = String(r["ProjectName"]||"");
+                        const sc = String(r["Source Code"]||"");
+                        return /Tantangara/i.test(pn) || /\bTAN\b/i.test(sc);
+                    }),
+                    MAR: tempRows.filter(r=>{
+                        const pn = String(r["ProjectName"]||"");
+                        const sc = String(r["Source Code"]||"");
+                        return /Marica/i.test(pn) || /\bMAR\b/i.test(sc);
+                    }),
+                    POLO: tempRows.filter(r=>{
+                        const pn = String(r["ProjectName"]||"");
+                        const sc = String(r["Source Code"]||"");
+                        return /Polo\s*Flat/i.test(pn) || /\bPOLO\b/i.test(sc);
+                    }),
+                    LOBS: tempRows.filter(r=>{
+                        const pn = String(r["ProjectName"]||"");
+                        const sc = String(r["Source Code"]||"");
+                        return /Lobs\s*Hole/i.test(pn) || /\bLOBS?\b/i.test(sc);
+                    })
+                };
+
+                const wsT = tempRowsToSheet(bySite.TAN);
+                const wsM = tempRowsToSheet(bySite.MAR);
+                const wsP = tempRowsToSheet(bySite.POLO);
+                const wsL = tempRowsToSheet(bySite.LOBS);
+
+                writeWB([["Main (Temperature)", wsTempMain], ["TAN", wsT], ["POLO", wsP], ["MAR", wsM], ["LOBS", wsL]], "Temperature_Extract.xlsx");
+
+                logB(`✅ Weekly done. All Sites rows: ${filtered.length} | Temp rows: ${tempRows.length} | ${rangeText}`);
+                state.processedRows += filtered.length;
+                refreshKPI();
+            }catch(e){
+                console.error(e);
+                alert("Weekly error: "+e.message);
+            }
+        });
+    </script>
+</body>
+</html>
