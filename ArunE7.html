@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Timesheet Converter – v2 + RIX & Shift Fixes (Merged)</title>
+  <meta name="description" content="Convert Daily Allocation Sheet PDFs to E7 Excel. v2 UI + header-based WBS mapping, plus fixes: prevent RIX/company text in names and use PDF-declared shift for Plant." />
+  
+  <!-- Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.13.216/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.13.216/pdf.worker.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    :root { /* Keep v2 look & feel */
+      --primary: 220 100% 60%;
+      --primary-2: 280 60% 60%;
+      --bg: #f7f8fc; --panel: #fff; --ink: #0f172a; --muted:#64748b; --edge:#e2e8f0;
+      --radius: 14px; --shadow: 0 10px 26px rgba(0,0,0,.08);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,Segoe UI,Arial,sans-serif;background:linear-gradient(145deg,#f8fafc,#eef2ff);color:var(--ink)}
+    .app{min-height:100vh;display:grid;grid-template-columns:360px 1fr;gap:1px;background:#0001}
+    @media (max-width: 1024px){.app{grid-template-columns:1fr;grid-template-rows:auto 1fr}}
+    .sidebar{background:var(--panel);padding:24px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:18px}
+    .logo{display:flex;align-items:center;gap:12px}
+    .logo-icon{width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,hsl(var(--primary)),hsl(var(--primary-2)));display:grid;place-items:center;color:#fff;font-weight:800}
+    h1{font-size:20px;margin:0}
+    .card{background:#fff;border:1px solid var(--edge);border-radius:var(--radius);padding:14px 16px}
+    .card h2{font-size:15px;margin:0 0 10px}
+    .file{width:100%;padding:12px 14px;border:2px dashed #6366f133;border-radius:12px;background:#eef2ff40}
+    .btn{width:100%;border:none;border-radius:12px;padding:11px 14px;font-weight:700;cursor:pointer}
+    .btn:disabled{opacity:.45;cursor:not-allowed}
+    .btn-primary{background:linear-gradient(135deg,hsl(var(--primary)),hsl(var(--primary-2)));color:#fff}
+    .btn-secondary{background:#10b981;color:#fff}
+    .status{font-size:12px;color:#64748b;min-height:24px}
+    main{padding:26px}
+    .table-wrap{background:#fff;border:1px solid var(--edge);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px 10px;border-bottom:1px solid var(--edge);font-size:13px;text-align:left}
+    th{position:sticky;top:0;background:linear-gradient(135deg,hsl(var(--primary)),hsl(var(--primary-2)));color:#fff;z-index:2}
+    tr.blank td{padding:6px;background:transparent;border:none}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="logo"><div class="logo-icon">📊</div><h1>© Akhilx3 Timesheet Converter</div>
+      <div class="card">
+        <h2>1) Upload PDF</h2>
+        <input id="pdfFile" class="file" type="file" accept=".pdf" />
+        <div class="status">Daily Allocation Sheet PDF </div>
+      </div>
+      <div class="card">
+        <h2>2) Extract & Preview</h2>
+        <button id="processBtn" class="btn btn-primary" disabled>Extract & Preview</button>
+        <div id="status" class="status"></div>
+      </div>
+      <div class="card">
+        <h2>3) Download Excel</h2>
+        <button id="downloadBtn" class="btn btn-secondary" disabled>⬇️ Download E7 Excel</button>
+        <div class="status">Exports with frozen header & numeric quantity</div>
+      </div>
+    </aside>
+
+    <main>
+      <h2 style="margin:0 0 14px">Data Preview</h2>
+      <div id="preview" class="table-wrap"></div>
+    </main>
+  </div>
+
+  <script>
+    // PDF.js worker configured (CDN worker above)
+
+    // DOM
+    const input = document.getElementById('pdfFile');
+    const btnProcess = document.getElementById('processBtn');
+    const btnDownload = document.getElementById('downloadBtn');
+    const statusEl = document.getElementById('status');
+    const previewEl = document.getElementById('preview');
+
+    // State
+    let extracted = [];
+    let sheetDate = '';
+    let sheetWorkRef = '';
+    let sheetShift = 'Day'; // NEW: from PDF text (used by Plant)
+    let globalSeq = 0;      // preserves original ordering across rows
+
+    // ---------- Helpers (v2 baseline + fixes) ----------
+    function setStatus(msg, kind='info'){ statusEl.textContent = msg; statusEl.style.color = (kind==='error') ? '#ef4444' : '#64748b'; }
+    function isNumeric(s){ return /^\d+(?:\.\d+)?$/.test(s); }
+    function to24(s){ if(!s) return ''; const c=s.trim(); if(/^\d{1,2}:\d{2}(:\d{2})?$/.test(c) && !/[AP]M/i.test(c)){ const p=c.split(':'), hh=p[0].padStart(2,'0'), mm=p[1].padStart(2,'0'), ss=p[2]?p[2].padStart(2,'0'):'00'; return `${hh}:${mm}:${ss}`; } const d=new Date(`2000-01-01 ${c}`); if(!isNaN(d)){ return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`; } return c; }
+    function hhmm(t){ if(!t) return ''; const m=/^(\d{2}):(\d{2})(?::\d{2})?$/.exec(t); return m?`${m[1]}:${m[2]}`:t; }
+    function qty2(q){ if(q===''||q==null) return ''; const n=Number(q); return isNaN(n)?q:(Math.round(n*100)/100).toString().replace(/\.00$/,''); }
+    function titleCase(s){ if(!s) return ''; const parts=s.split(','); if(parts.length>=2){ const tc=x=>x.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()); return `${tc(parts[0].trim())}, ${tc(parts.slice(1).join(',').trim())}`; } return s.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase()); }
+
+    // --- Fix 1: prevent company/role tokens appending to names ---
+    const NAME_STOPWORDS = new Set(['RIX','FGJV','LEED','ENGINEERING','CON','JV','SNOWY']);
+    const ROLE_HINTS = /^(Project|Site|Leading|Foreman|Surveyor|Engineer|Operator|Labourer|Multiskilled|Dump|Dozer|Water|Cart|Trencher)$/i;
+    const ASSET_CODE = /^[A-Z]{2,3}\d{1,4}$/; // EX80, ADT20 etc.
+    function isCompanyLike(tok){ return /^[A-Z]{2,6}$/.test(tok) && NAME_STOPWORDS.has(tok.toUpperCase()); }
+
+    // PDF text extraction (for lines)
+    async function extractLines(buf){ const pdf=await pdfjsLib.getDocument({data:buf}).promise; const lines=[]; for(let p=1;p<=pdf.numPages;p++){ const page=await pdf.getPage(p); const c=await page.getTextContent(); c.items.forEach(it=>{ const t=(it.str||'').trim(); if(t) lines.push(t); }); } return lines; }
+
+    // Structured extraction with positions (v2 behavior) + page tagging
+    async function extractStructured(buf){
+      const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+      const headerMap={}; const rows=[];
+      for(let pageNum=1; pageNum<=pdf.numPages; pageNum++){
+        const page=await pdf.getPage(pageNum); const c=await page.getTextContent(); const viewport=page.getViewport({scale:1.0});
+        const buckets={};
+        c.items.forEach(it=>{
+          const str=(it.str||'').trim(); if(!str) return;
+          const tr=pdfjsLib.Util.transform(viewport.transform, it.transform); const x=tr[4], y=tr[5];
+          // Detect numeric headers 1..19 (v2 mapping approach)
+          if (/^([1-9]|1[0-9])$/.test(str)){ const num=parseInt(str); (headerMap[num]||(headerMap[num]=[])).push({x,y}); }
+          const yKey=Math.round(y); (buckets[yKey]||(buckets[yKey]=[])).push({str,x});
+        });
+        const yKeys=Object.keys(buckets).map(n=>+n).sort((a,b)=>a-b);
+        let grp=null; const merged=[];
+        for(const y of yKeys){ const its=buckets[y]; if(!grp){ grp={y,items:its.slice()}; } else if(Math.abs(y-grp.y)<=5){ grp.items=grp.items.concat(its); if(y<grp.y) grp.y=y; } else { merged.push(grp); grp={y,items:its.slice()}; }}
+        if(grp) merged.push(grp);
+        merged.forEach(g=>rows.push({...g, page:pageNum }));
+      }
+      // Choose the rightmost instance on the highest baseline for each column number
+      const headerPositions=[]; for(let i=1;i<=19;i++){ const arr=headerMap[i]||[]; if(arr.length){ let cand=arr[0]; for(const it of arr){ if(it.y < cand.y || (it.y===cand.y && it.x>cand.x)) cand=it; } headerPositions.push({num:i, x:cand.x}); } }
+      headerPositions.sort((a,b)=>a.x-b.x);
+      return { rows, headerPositions };
+    }
+
+    // Map a numeric column to WBS string (v2 mapping retained)
+    function mapColumnToWBS(col){
+      switch(col){
+        case 7: return 'SH-MN-CN-TBM4-13280.1: TBM4 - Slope Stabilization_10M505L';
+        case 8: return 'SH-MN-CN-TBM4-2430: TBM4_Drainage_10M553L';
+        case 9: return 'SH-MN-CN-TBM4-2450: TBM4_Sedimentation Basin_10M554L';
+        default: return 'SH-MN-CN-TBM4-13280: TBM4 - Portal Excavation (All Pads / Cut & Fill Activities)_10M505L';
+      }
+    }
+
+    // Workforce (v2 logic for WBS by column) + Fix 1 for names + stable order
+    function parseWorkforce(structured){
+      const out=[];
+      const { rows, headerPositions } = structured;
+      const sortedHeaders = headerPositions.slice().sort((a,b)=>a.x-b.x);
+      const boundaries=[]; for(let i=0;i<sortedHeaders.length-1;i++){ boundaries.push((sortedHeaders[i].x + sortedHeaders[i+1].x)/2); }
+      const sortedRows = rows.slice().sort((a,b)=> (a.page??0)-(b.page??0) || (a.y-b.y) );
+      for(const row of sortedRows){
+        const items=row.items.slice().sort((a,b)=>a.x-b.x);
+        const nameIdx = items.findIndex(it=>/,/.test(it.str)); if(nameIdx===-1) continue;
+        let name = items[nameIdx].str; let next=nameIdx+1;
+        // join trailing tokens but stop at company/role/asset hints
+        while(next<items.length){ const nxt=items[next].str.trim(); if(/[()]/.test(nxt) || isCompanyLike(nxt) || ROLE_HINTS.test(nxt) || ASSET_CODE.test(nxt)) break; if(/^[A-Za-z''\-]+$/.test(nxt)){ name+=' '+nxt; next++; } else break; }
+        const codeIdx = items.findIndex(it=>/^\d{10}$/.test(it.str)); if(codeIdx===-1) continue;
+        const resourceNote = items[codeIdx].str;
+        let start='', end='', brk='';
+        for(let i=codeIdx+1;i<items.length;i++){ const s=items[i].str; if(!start && /\d{1,2}:\d{2}/.test(s)){ start=s; continue; } if(start && !end && /\d{1,2}:\d{2}/.test(s)){ end=s; continue; } if(start && end && !brk && isNumeric(s)){ brk=s; break; } }
+        // pick quantity by locating first numeric after break under a header boundary
+        let quantity=''; let colNum=null; const after=[]; if(brk){ const idx=items.findIndex(it=>it.str===brk || (isNumeric(it.str) && Math.abs(parseFloat(it.str)-parseFloat(brk))<1e-6)); for(let j=idx+1;j<items.length;j++){ if(isNumeric(items[j].str)) after.push(items[j]); } }
+        if(after.length){ after.sort((a,b)=>a.x-b.x); for(const cand of after){ const val=parseFloat(cand.str); if(!isNaN(val) && val>0){ quantity=cand.str; const x=cand.x; let hi=sortedHeaders.length-1; for(let b=0;b<boundaries.length;b++){ if(x < boundaries[b]){ hi=b; break; } } colNum = sortedHeaders[hi].num; break; } } }
+        if(!quantity) continue;
+        let shift='Day'; if(start && end){ const sd=new Date(`2000-01-01 ${start}`), ed=new Date(`2000-01-01 ${end}`); if(sd>ed) shift='Night'; }
+        out.push({ type:'Labour', resource: titleCase(name), quantity: qty2(quantity), shift, wbs: mapColumnToWBS(colNum), resourceNote, start: hhmm(to24(start)), end: hhmm(to24(end)), break: brk, seq: globalSeq++ });
+      }
+      return out;
+    }
+
+    // Fix 2: get Day/Night from PDF text (applies to Plant)
+    function detectSheetShift(lines){ let s='Day'; for(const raw of lines){ const t=raw.toUpperCase(); if(t.includes('SHIFT') && t.includes('NIGHT')){ s='Night'; break; } if(t.includes('SHIFT') && t.includes('DAY')) s='Day'; } return s; }
+
+    // Plant (keep v2 numeric handling; only change is shift = sheetShift)
+    function parsePlant(lines){
+      const out=[];
+      for(let i=0;i<lines.length;i++){
+        const line=lines[i].trim();
+        const m=line.match(/^(EX|ADT|WT|RT)[A-Za-z0-9]+$/);
+        if(m){
+          const asset=m[0];
+          // collect following numeric values (hours often appear right after)
+          let j=i+1; const nums=[];
+          while(j<lines.length){ const s=lines[j]; if(isNumeric(s)){ nums.push(parseFloat(s)); j++; continue; } if(nums.length===0){ j++; continue; } break; }
+          let qty = nums.length ? String(Math.max(...nums)) : '';
+          out.push({ type:'Plant', resource: asset, quantity: qty2(qty), shift: sheetShift, wbs: mapColumnToWBS(1), resourceNote:'', start:'', end:'', break:'', seq: globalSeq++ });
+          i=j-1;
+        }
+      }
+      return out;
+    }
+
+    // Aggregation (sum quantities; keep first appearance order)
+    function aggregate(rows){
+      const groups={};
+      for(const r of rows){ const key=`${r.type}|${r.resource}|${r.shift}|${r.wbs}`; if(!groups[key]) groups[key]={...r, quantity:0, firstSeq:r.seq}; const g=groups[key]; const q=parseFloat(r.quantity); if(!isNaN(q)) g.quantity+=q; if(r.start && (!g.start || r.start<g.start)) g.start=r.start; if(r.end && (!g.end || r.end>g.end)) g.end=r.end; if(!g.resourceNote && r.resourceNote) g.resourceNote=r.resourceNote; if(r.seq<g.firstSeq) g.firstSeq=r.seq; }
+      return Object.values(groups).sort((a,b)=>a.firstSeq-b.firstSeq).map(g=>({ type:g.type, resource:g.resource, quantity: qty2(g.quantity), shift:g.shift, wbs:g.wbs, resourceNote:g.resourceNote||'', start:g.start||'', end:g.end||'', break:g.break||'', seq:g.firstSeq }));
+    }
+
+    // Date & Work Reference (v2 helpers)
+    function extractDate(lines){ const L=lines.find(t=>/\d{1,2}\s+[A-Z][a-z]+\s+\d{4}/.test(t)); if(!L) return ''; const m=L.match(/(\d{1,2})\s+([A-Z][a-z]+)\s+(\d{4})/); if(!m) return ''; const months=['January','February','March','April','May','June','July','August','September','October','November','December']; const mi=months.findIndex(x=>x.startsWith(m[2])); return mi>=0 ? `${m[3]}-${String(mi+1).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}` : ''; }
+    function extractWorkRef(lines){ const i=lines.findIndex(t=>/^SH-[A-Z]{2}-[A-Z]{2}-/.test(t)); if(i<0) return ''; let wbs=lines[i], desc=''; for(let k=i+1;k<lines.length && desc.split(/\s+/).length<50;k++){ const t=lines[k]; if(/^\d|^SH-|^[A-Z]+,/.test(t)) break; if(desc) desc+=' '; desc+=t; } const a=lines.findIndex(t=>/Workfront|Area/.test(t)); let loc=''; if(a!==-1 && a+1<lines.length){ const v=lines[a+1]; if(/\w/.test(v)) loc=v; } return `${wbs}: ${desc.trim()}${loc?'_'+loc:''}`; }
+
+    // Render preview table
+    function render(rows){
+      if(!rows.length){ previewEl.innerHTML='<div style="padding:24px;color:#64748b">No data</div>'; return; }
+      const table=document.createElement('table');
+      const thead=document.createElement('thead'); const hr=document.createElement('tr');
+      ['DATE','RESOURCE','WORK REFERENCE','USAGE CODE','UOM','RATE CODE','QUANTITY','RESOURCE NOTE','START TIME','END TIME','BREAK']
+      .forEach(h=>{ const th=document.createElement('th'); th.textContent=h; hr.appendChild(th); });
+      thead.appendChild(hr); table.appendChild(thead);
+      const tbody=document.createElement('tbody');
+      for(const r of rows){
+        const tr=document.createElement('tr');
+        if(r.type==='Blank'){ tr.className='blank'; for(let i=0;i<11;i++){ tr.appendChild(document.createElement('td')); } tbody.appendChild(tr); continue; }
+        const usage = r.type==='Plant' ? `P&E – ${r.shift} Shift (${r.shift==='Night'?'NS':'DS'})` : `${r.shift} Shift (${r.shift==='Night'?'NS':'DS'})`;
+        const rate = r.type==='Plant' ? (r.shift==='Night'?'Night':'Normal') : r.shift;
+        const tds=[ sheetDate, r.resource||'', (r.wbs||sheetWorkRef), usage, 'hours (h)', rate, r.quantity||'', r.resourceNote||'', r.start||'', r.end||'', r.break||'' ];
+        for(const v of tds){ const td=document.createElement('td'); td.textContent=v||''; tr.appendChild(td); }
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody); previewEl.innerHTML=''; const wrap=document.createElement('div'); wrap.className='table-wrap'; wrap.appendChild(table); previewEl.appendChild(wrap);
+    }
+
+    // Export Excel (v2 formatting)
+    function exportExcel(){
+      const wb = XLSX.utils.book_new();
+      const data = [
+        ['DATE','RESOURCE','WORK REFERENCE','USAGE CODE','','','','UOM','RATE CODE','','','QUANTITY','','RESOURCE NOTE','START TIME','END TIME','BREAK DURATION']
+      ];
+      for(const r of extracted){
+        if(r.type==='Blank'){ data.push(Array(17).fill('')); continue; }
+        const usage = r.type==='Plant' ? `P&E – ${r.shift} Shift (${r.shift==='Night'?'NS':'DS'})` : `${r.shift} Shift (${r.shift==='Night'?'NS':'DS'})`;
+        const rate  = r.type==='Plant' ? (r.shift==='Night'?'Night':'Normal') : r.shift;
+        data.push([ sheetDate, r.resource||'', (r.wbs||sheetWorkRef), usage, '', '', '', 'hours (h)', rate, '', '', r.quantity||'', '', r.resourceNote||'', r.start||'', r.end||'', r.break||'' ]);
+      }
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      ws['!cols'] = [ {wch:12},{wch:28},{wch:50},{wch:20},{wch:4},{wch:4},{wch:4},{wch:10},{wch:10},{wch:4},{wch:4},{wch:10},{wch:4},{wch:18},{wch:10},{wch:10},{wch:8} ];
+      ws['!freeze'] = { rows: 1, cols: 0 };
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      for(let R=1; R<=range.e.r; R++){ const C=11; const addr=XLSX.utils.encode_cell({r:R,c:C}); const cell=ws[addr]; if(cell && cell.v!=='' && !isNaN(Number(cell.v))) cell.t='n'; }
+      XLSX.utils.book_append_sheet(wb, ws, 'Timesheet Data');
+      XLSX.writeFile(wb, `E7_Timesheet_${sheetDate||'export'}.xlsx`);
+    }
+
+    // ---------- Events ----------
+    input.addEventListener('change', ()=>{ extracted=[]; sheetDate=''; sheetWorkRef=''; sheetShift='Day'; globalSeq=0; btnProcess.disabled = input.files.length===0; btnDownload.disabled=true; setStatus(input.files.length? 'PDF selected. Click Extract & Preview.' : ''); });
+
+    btnProcess.addEventListener('click', async ()=>{
+      const f=input.files[0]; if(!f) return; setStatus('Reading PDF...');
+      try{
+        const buf=await f.arrayBuffer();
+        const structured = await extractStructured(buf);
+        const lines = await extractLines(buf);
+        sheetDate   = extractDate(lines);
+        sheetWorkRef= extractWorkRef(lines);
+        sheetShift  = detectSheetShift(lines); // apply to Plant
+
+        let labour = aggregate(parseWorkforce(structured));
+        let plant  = aggregate(parsePlant(lines));
+
+        const labourDay  = labour.filter(r=>r.shift==='Day');
+        const labourNight= labour.filter(r=>r.shift==='Night');
+        const plantDay   = plant.filter(r=>r.shift==='Day');
+        const plantNight = plant.filter(r=>r.shift==='Night');
+
+        const blank={type:'Blank'}; const rows=[];
+        rows.push(...labourDay, ...labourNight); if(labourDay.length+labourNight.length) rows.push(blank, blank);
+        rows.push(...plantDay); if(plantDay.length) rows.push(blank, blank);
+        rows.push(...plantNight);
+
+        extracted = rows; render(extracted);
+        btnDownload.disabled = extracted.length===0; setStatus(extracted.length? `Ready (${extracted.filter(r=>r.type!=='Blank').length} rows)` : 'No rows found', extracted.length?'info':'error');
+      }catch(err){ console.error(err); setStatus('Processing error','error'); }
+    });
+
+    btnDownload.addEventListener('click', ()=>{ try{ exportExcel(); setStatus('Excel downloaded'); }catch(e){ console.error(e); setStatus('Export error','error'); } });
+  </script>
+</body>
+</html>
