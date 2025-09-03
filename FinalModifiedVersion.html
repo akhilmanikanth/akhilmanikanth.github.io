@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1409,7 +1408,7 @@
             return null;
         }
 
-        const MAP_EXTRA_LOBS=[/ECVT/i,/ECVT\s*Tunnel/i,/DT\s*0?4/i,/Backfill\s*Secondary\s*grout/i,/MAR\s*263\s*Grout\s*Trial/i,/TSS-UC-S5/i];
+        const MAP_EXTRA_LOBS=[/ECVT/i,/ECVT\s*Tunnel/i,/DT\s*0?4/i];
         const MAP_EXTRA_TAN=[/\bR18(4[1-9]|5[0-9]|60)\b/i,/\bR185[1-9]\b/i,/\bR1860\b/i,/\bTBM\b/i]; // R1841–R1860 + TBM
         const MAP_EXTRA_LOBS_MH=[/^MH-/i]; // starts with MH-
 
@@ -1804,7 +1803,7 @@
         };
 
         const MAP_TAN=[/\bR19(2[1-9]|30)\b/i,/\bTBM3\b/i,/\bHRT-?01\b/i,/Intake\s*C3\s*Grout\s*Testing/i,/S2-CIV-HT-HTU-LOT/i,/S2-CIV-IG-TNI-LOT/i,/Grout\s*Plant[_\s]?32/i,/Completion\s*of\s*Backfill/i];
-        const MAP_MAR=[/S2-CIV-CT-MAD-LOT/i,/S2-CIV-SS-HSS-LOT/i,/Marica\s*ADIT\s*Portal/i];
+        const MAP_MAR=[/Marica\s*ADIT\s*Portal/i];
         const MAP_LOBS=[/\bJunction\b/i,/\bTalbingo\b/i,/\bTH\b|\bTransforming\s*Hall\b/i,/\bECV\b/i,/\bCTB\b/i,/\bMH\b|\bMachine\s*Hall\b/i,/\bPenstock\b/i,/\bTR1\b.*\bTBM2\b/i,/\bTalbingo\s*Junction\b/i,/\bDT0?3\b/i,/\bD&?B\b.*\bTunnel\b/i,/\bPenstock\s*5\b/i];
         const ONLY_TR=/^(?=.*\bTR\s*\d+\b)(?!.*(Junction|Talbingo|TBM3|HRT|R19|HT-HTU|IG-TNI|CT-MAD|SS-HSS|Marica|ADIT|Portal|ECV|CTB|Machine|Penstock|DT|D&?B|Tunnel|Grout\s*Plant|Intake|Completion)).*$/i;
 
