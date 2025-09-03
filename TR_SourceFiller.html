@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TR → Source Code Filler (Standalone)</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    :root { --bg:#0f172a; --card:#111827ee; --muted:#94a3b8; --text:#e5e7eb; --accent:#22c55e; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:linear-gradient(180deg,#0b1020,#0f172a);color:var(--text)}
+    header{padding:24px 20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #1f2937}
+    header h1{margin:0;font-size:20px}
+    header .tag{padding:4px 8px;border-radius:999px;background:#16a34a22;color:#A7F3D0;font-size:12px;border:1px solid #16a34a55}
+    main{padding:20px;max-width:1100px;margin:0 auto;display:grid;grid-template-columns:1.1fr 0.9fr;gap:18px}
+    .card{background:var(--card);border:1px solid #1f2937;border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,.25);padding:18px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    label{font-size:12px;color:var(--muted);display:block;margin-bottom:8px}
+    input[type=file],select,button{width:100%;padding:10px 12px;border-radius:12px;border:1px solid #283548;background:#0b1220;color:var(--text)}
+    button{background:linear-gradient(180deg,#22c55e,#15803d);border:none;font-weight:600;cursor:pointer}
+    button.secondary{background:#0b1220;border:1px solid #374151}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .muted{color:var(--muted);font-size:13px}
+    .stat{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#0b1220;border:1px solid #1f2937;border-radius:12px;margin-top:8px}
+    .pill{padding:3px 8px;border-radius:999px;font-size:12px}
+    .ok{background:#16a34a22;color:#86efac;border:1px solid #16a34a55}
+    .warn{background:#f59e0b22;color:#fde68a;border:1px solid #f59e0b55}
+    details{background:#0b1220;border:1px solid #1f2937;border-radius:12px;padding:12px}
+    summary{cursor:pointer}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>TR → Source Code Filler</h1>
+    <span class="tag">Standalone • Browser‑only</span>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>1) Upload files</h2>
+      <div class="row">
+        <div>
+          <label>Main file (your “All Sites/Main” export)</label>
+          <input type="file" id="mainFile" accept=".xlsx,.xls,.csv" />
+          <div class="muted">Auto‑detects <code>TR</code>/<code>TR No</code> and <code>Source Code</code> headers.</div>
+        </div>
+        <div>
+          <label>TR Summary (colleague’s workbook)</label>
+          <input type="file" id="summaryFile" accept=".xlsx,.xls,.csv" />
+          <div class="muted">Reads only sheet <strong>TR Summary 2025</strong>. Pulls <strong>TR No.</strong> and <strong>Site</strong>.</div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px;">
+        <div>
+          <label>When a TR has multiple values in Summary</label>
+          <select id="conflictRule">
+            <option value="latest">Prefer latest by date (auto‑detect dates)</option>
+            <option value="mostfreq">Prefer most frequent</option>
+            <option value="first">Keep first seen</option>
+            <option value="last">Keep last seen</option>
+          </select>
+        </div>
+        <div>
+          <label>Date columns in Summary (optional, comma‑separated)</label>
+          <input id="dateHints" placeholder="e.g. Date, Date Tested, Updated On" />
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px;">
+        <div>
+          <label>Manual override: TR header (Main)</label>
+          <input id="mainTrHeader" placeholder="auto" />
+        </div>
+        <div>
+          <label>Manual override: Source Code header (Main)</label>
+          <input id="mainScHeader" placeholder="auto" />
+        </div>
+        <div>
+          <label>Manual override: TR header (Summary)</label>
+          <input id="sumTrHeader" placeholder="auto" />
+        </div>
+        <div>
+          <label>Manual override: Site/Source header (Summary)</label>
+          <input id="sumScHeader" placeholder="Site" />
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; align-items:center; margin-top:14px;">
+        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#cbd5e1;">
+          <input type="checkbox" id="includeAudit" style="width:14px;height:14px;" /> Include audit sheet
+        </label>
+        <button id="runBtn" disabled>Run match & fill</button>
+        <button id="downloadBtn" class="secondary" disabled>Download updated main</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2) Results</h2>
+      <div class="stat"><div>Total rows (Main)</div><div id="statTotal">–</div></div>
+      <div class="stat"><div>Rows with missing Source Code (before)</div><div id="statMissing">–</div></div>
+      <div class="stat"><div>Rows filled using TR Summary</div><div class="pill ok" id="statFilled">0</div></div>
+      <div class="stat"><div>Still unresolved (after)</div><div class="pill warn" id="statUnresolved">–</div></div>
+      <details style="margin-top:12px;"><summary>Preview unresolved TRs</summary>
+        <div id="unresolvedList" class="muted" style="margin-top:8px; white-space:pre-wrap;"></div>
+      </details>
+      <details style="margin-top:12px;"><summary>Detection report (headers & sheets)</summary>
+        <div id="detectReport" class="muted" style="margin-top:8px; white-space:pre-wrap;"></div>
+      </details>
+    </section>
+  </main>
+
+  <footer> DCT • Akhil helper — TR→Source Code filler. Pure HTML/JS. </footer>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    let mainWb, mainData, mainHeaders, mainSheetName;
+    let summaryWb, summaryData, summaryHeaders, summarySheetName;
+    let postFillMainData = null, auditRows = [];
+
+    const candidateTR = ['tr','trno','tr number','trnumber','trnum','tr#','test request','testrequest','wr','wrno','wr#','wrnumber'];
+    const candidateSC = ['sourcecode','source code','source_code','source','site'];
+    const candidateDate = ['date','date tested','updated on','last updated','timestamp','time','datetime','date batched'];
+
+    function norm(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); }
+    function normKey(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,''); }
+
+    function sheetToAOA(wb, preferredName){
+      let name = wb.SheetNames[0];
+      if(preferredName && wb.Sheets[preferredName]) name = preferredName;
+      const ws = wb.Sheets[name];
+      const aoa = XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:'' });
+      return { name, aoa };
+    }
+
+    function aoaToObjects(aoa){
+      if(!aoa || !aoa.length) return { headers: [], rows: [] };
+      const headers = aoa[0].map(h=>String(h||''));
+      const rows = aoa.slice(1).map(r=>{ const o={}; headers.forEach((h,i)=>o[h]= i<r.length ? r[i] : ''); return o; });
+      return { headers, rows };
+    }
+
+    function autodetect(headers, overrideTr, overrideSc){
+      const map = headers.map(h=>({raw:h, key:normKey(h)}));
+      let trCol=null, scCol=null;
+      if(overrideTr){ const k=normKey(overrideTr); trCol = map.find(m=>m.key===k)?.raw || null; }
+      if(overrideSc){ const k=normKey(overrideSc); scCol = map.find(m=>m.key===k)?.raw || null; }
+      if(!trCol){ for(const c of candidateTR){ const hit=map.find(m=>m.key===normKey(c)); if(hit){ trCol=hit.raw; break; } } }
+      if(!scCol){ for(const c of candidateSC){ const hit=map.find(m=>m.key===normKey(c)); if(hit){ scCol=hit.raw; break; } } }
+      return { trCol, scCol };
+    }
+
+    // Extract canonical TR number digits (e.g., "S2-FGJV-QUA-TR-36263" → "36263")
+    function extractTRNum(v){
+      const s = String(v||'').toUpperCase();
+      const m = s.match(/\bTR[^0-9]*([0-9]{3,})\b/);
+      if(m) return m[1];
+      const m2 = s.match(/\b([0-9]{3,})\b/);
+      return m2 ? m2[1] : '';
+    }
+    // Map site names to Source Codes
+    function siteToSourceCode(site){
+      const s = norm(site).replace(/[_\-]+/g,' ').trim();
+      if(!s) return '';
+      if(/lobs\s*hole|talbingo/.test(s)) return 'LOBS';
+      if(/tantangara/.test(s)) return 'TAN';
+      if(/marica/.test(s)) return 'MAR';
+      if(/polo\s*flat/.test(s)) return 'POLO';
+      return '';
+    }
+
+    function detectDates(headers, hintCsv){
+      const hints = (hintCsv||'').split(',').map(s=>norm(s)).filter(Boolean);
+      const keys = headers.map(h=>({raw:h, key:norm(h)}));
+      const res=[]; for(const h of keys){ if(candidateDate.includes(h.key) || hints.includes(h.key)) res.push(h.raw); }
+      return res;
+    }
+
+    function coerceDate(v){
+      if(typeof v === 'number'){ const d = XLSX.SSF.parse_date_code(v); if(!d) return null; return new Date(Date.UTC(d.y,(d.m||1)-1,d.d||1,d.H||0,d.M||0,d.S||0)); }
+      const s = String(v||'').trim(); if(!s) return null; const t = new Date(s); return isNaN(t.getTime())?null:t;
+    }
+
+    function buildSummaryMap(rows, trCol, scOrSiteCol, rule, dateCols){
+      const buckets = new Map(); // canonical TR -> {sc,date}[]
+      const isSiteCol = normKey(scOrSiteCol) === 'site';
+      for(const r of rows){
+        const trCanon = extractTRNum(r[trCol]); if(!trCanon) continue;
+        let sc = String(r[scOrSiteCol] ?? '').trim();
+        if(isSiteCol) sc = siteToSourceCode(sc);
+        if(!buckets.has(trCanon)) buckets.set(trCanon, []);
+        let bestDate=null; for(const dc of (dateCols||[])){ if(r.hasOwnProperty(dc)){ const d=coerceDate(r[dc]); if(d && (!bestDate || d>bestDate)) bestDate=d; } }
+        buckets.get(trCanon).push({ sc, date: bestDate });
+      }
+      const out = new Map();
+      for(const [tr, arr] of buckets){
+        const valids = arr.filter(x=>x.sc);
+        if(!valids.length){ out.set(tr,''); continue; }
+        let chosen = valids[0];
+        if(rule==='last') chosen = valids[valids.length-1];
+        else if(rule==='first') chosen = valids[0];
+        else if(rule==='mostfreq'){
+          const freq=new Map(); for(const x of valids){ freq.set(x.sc,(freq.get(x.sc)||0)+1); }
+          let bestSc=null,bestN=-1; for(const [sc,n] of freq){ if(n>bestN){bestN=n; bestSc=sc;} }
+          chosen={sc:bestSc, date:null};
+        } else {
+          const withDates = valids.filter(x=>x.date);
+          chosen = withDates.length ? withDates.sort((a,b)=>b.date-a.date)[0] : valids[valids.length-1];
+        }
+        out.set(tr, chosen.sc);
+      }
+      return out; // Map canonical TR -> SC
+    }
+
+    function fillMain(mainRows, trCol, scCol, trToSc){
+      const beforeMissing = mainRows.filter(r=>!String(r[scCol]||'').trim()).length;
+      let filled=0; const unresolvedSet=new Set(); const filledAudit=[];
+      for(const r of mainRows){
+        const curSc = String(r[scCol]||'').trim(); if(curSc) continue;
+        const trCanon = extractTRNum(r[trCol]);
+        if(!trCanon){ unresolvedSet.add('∅ (blank/invalid TR)'); filledAudit.push({TR:String(r[trCol]||''), SourceCode:'', Fill:'unresolved'}); continue; }
+        const mapped = trToSc.get(trCanon) || '';
+        if(mapped){ r[scCol]=mapped; filled++; filledAudit.push({TR:trCanon, SourceCode:mapped, Fill:'filled'}); }
+        else { unresolvedSet.add(trCanon); filledAudit.push({TR:trCanon, SourceCode:'', Fill:'unresolved'}); }
+      }
+      return { beforeMissing, filled, unresolved: Array.from(unresolvedSet).sort(), audit: filledAudit };
+    }
+
+    function objectsToSheet(rows){ return XLSX.utils.json_to_sheet(rows, { skipHeader:false }); }
+    function downloadWorkbook(filename, sheets){
+      const wb = XLSX.utils.book_new();
+      for(const {name,data} of sheets){
+        const ws = Array.isArray(data) && data.length && typeof data[0] === 'object' ? objectsToSheet(data) : XLSX.utils.aoa_to_sheet(data);
+        XLSX.utils.book_append_sheet(wb, ws, name);
+      }
+      XLSX.writeFile(wb, filename);
+    }
+
+    function enableRunIfReady(){ $('runBtn').disabled = !(mainWb && summaryWb); }
+
+    $('mainFile').addEventListener('change', async (e)=>{
+      const f=e.target.files[0]; if(!f) return; const data=await f.arrayBuffer();
+      mainWb = XLSX.read(data,{type:'array'});
+      const {name,aoa} = sheetToAOA(mainWb); mainSheetName=name; const {headers,rows}=aoaToObjects(aoa); mainHeaders=headers; mainData=rows; enableRunIfReady();
+    });
+
+    $('summaryFile').addEventListener('change', async (e)=>{
+      const f=e.target.files[0]; if(!f) return; const data=await f.arrayBuffer();
+      summaryWb = XLSX.read(data,{type:'array'});
+      const {name,aoa} = sheetToAOA(summaryWb,'TR Summary 2025'); summarySheetName=name; const {headers,rows}=aoaToObjects(aoa); summaryHeaders=headers; summaryData=rows; enableRunIfReady();
+    });
+
+    $('runBtn').addEventListener('click', ()=>{
+      const report=[]; if(!mainData||!summaryData){ alert('Please upload both files.'); return; }
+      const {trCol:mTR, scCol:mSC} = autodetect(mainHeaders, $('mainTrHeader').value.trim()||null, $('mainScHeader').value.trim()||null);
+      const {trCol:sTR, scCol:sSC} = autodetect(summaryHeaders, $('sumTrHeader').value.trim()||null, $('sumScHeader').value.trim()||null);
+      report.push('Main sheet: '+mainSheetName);
+      report.push('Detected TR (Main): '+(mTR||'❌'));
+      report.push('Detected Source Code (Main): '+(mSC||'❌'));
+      report.push('Summary sheet: '+summarySheetName);
+      report.push('Detected TR (Summary): '+(sTR||'❌'));
+      report.push('Detected Site/Source (Summary): '+(sSC||'❌'));
+      const dateCols = detectDates(summaryHeaders, $('dateHints').value); report.push('Detected date columns (Summary): '+(dateCols.join(', ')||'none'));
+      if(!mTR||!mSC||!sTR||!sSC){ $('detectReport').textContent=report.join('\n'); alert('Could not auto‑detect required headers. You can set manual overrides above and try again.'); return; }
+      const rule=$('conflictRule').value; const trMap = buildSummaryMap(summaryData, sTR, sSC, rule, dateCols);
+      postFillMainData = mainData.map(r=>({...r}));
+      const {beforeMissing, filled, unresolved, audit} = fillMain(postFillMainData, mTR, mSC, trMap);
+      $('statTotal').textContent=String(mainData.length); $('statMissing').textContent=String(beforeMissing); $('statFilled').textContent=String(filled); $('statUnresolved').textContent=String(beforeMissing-filled);
+      $('unresolvedList').textContent = unresolved.join('\n') || '(none)'; $('detectReport').textContent=report.join('\n');
+      auditRows=audit; $('downloadBtn').disabled=false;
+    });
+
+    $('downloadBtn').addEventListener('click', ()=>{
+      if(!postFillMainData){ alert('Run the tool first.'); return; }
+      const outName = $('includeAudit').checked ? 'Main_with_SourceCodes_and_Audit.xlsx' : 'Main_with_SourceCodes.xlsx';
+      const headers = mainHeaders; const mainRowsAoa=[headers.slice()]; for(const r of postFillMainData){ mainRowsAoa.push(headers.map(h=> r[h] ?? '')); }
+      const sheets=[{name:'All Sites (filled)', data: mainRowsAoa}];
+      if($('includeAudit').checked){ sheets.push({name:'TR_merge_audit', data: auditRows}); }
+      downloadWorkbook(outName, sheets);
+    });
+  </script>
+</body>
+</html>
