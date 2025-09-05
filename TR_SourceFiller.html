@@ -3,155 +3,821 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>TR → Source Code Filler (Standalone)</title>
+  <title>TR → Source Code Filler Pro</title>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    :root { --bg:#0f172a; --card:#111827ee; --muted:#94a3b8; --text:#e5e7eb; --accent:#22c55e; }
-    *{box-sizing:border-box}
-    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:linear-gradient(180deg,#0b1020,#0f172a);color:var(--text)}
-    header{padding:24px 20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #1f2937}
-    header h1{margin:0;font-size:20px}
-    header .tag{padding:4px 8px;border-radius:999px;background:#16a34a22;color:#A7F3D0;font-size:12px;border:1px solid #16a34a55}
-    main{padding:20px;max-width:1100px;margin:0 auto;display:grid;grid-template-columns:1.1fr 0.9fr;gap:18px}
-    .card{background:var(--card);border:1px solid #1f2937;border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,.25);padding:18px}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    label{font-size:12px;color:var(--muted);display:block;margin-bottom:8px}
-    input[type=file],select,button{width:100%;padding:10px 12px;border-radius:12px;border:1px solid #283548;background:#0b1220;color:var(--text)}
-    button{background:linear-gradient(180deg,#22c55e,#15803d);border:none;font-weight:600;cursor:pointer}
-    button.secondary{background:#0b1220;border:1px solid #374151}
-    button:disabled{opacity:.6;cursor:not-allowed}
-    .muted{color:var(--muted);font-size:13px}
-    .stat{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#0b1220;border:1px solid #1f2937;border-radius:12px;margin-top:8px}
-    .pill{padding:3px 8px;border-radius:999px;font-size:12px}
-    .ok{background:#16a34a22;color:#86efac;border:1px solid #16a34a55}
-    .warn{background:#f59e0b22;color:#fde68a;border:1px solid #f59e0b55}
-    details{background:#0b1220;border:1px solid #1f2937;border-radius:12px;padding:12px}
-    summary{cursor:pointer}
+    :root {
+      /* Modern Color Palette */
+      --bg-primary: hsl(222, 47%, 6%);
+      --bg-secondary: hsl(220, 39%, 8%);
+      --bg-card: hsl(220, 13%, 11%);
+      --bg-hover: hsl(220, 13%, 15%);
+      --accent-primary: hsl(142, 76%, 36%);
+      --accent-secondary: hsl(262, 83%, 58%);
+      --accent-warning: hsl(38, 92%, 58%);
+      --accent-danger: hsl(0, 72%, 51%);
+      --text-primary: hsl(210, 40%, 98%);
+      --text-secondary: hsl(215, 20%, 65%);
+      --text-muted: hsl(215, 14%, 45%);
+      --border-default: hsl(217, 19%, 18%);
+      --border-focus: hsl(142, 76%, 36%);
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+      --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 20px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Header Styles */
+    .header {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-default);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .header-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: white;
+      font-size: 16px;
+    }
+
+    .logo h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .version-badge {
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      color: white;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 500;
+      animation: pulse-glow 2s infinite;
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 0 rgba(34, 197, 94, 0.4); }
+      50% { box-shadow: 0 0 20px rgba(34, 197, 94, 0.4); }
+    }
+
+    /* Main Container */
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 32px 24px;
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 32px;
+      min-height: calc(100vh - 100px);
+    }
+
+    /* Card Components */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      box-shadow: var(--shadow-lg);
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .card:hover::before {
+      opacity: 1;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .card-icon {
+      width: 24px;
+      height: 24px;
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .card h2 {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    /* File Upload Zones */
+    .upload-zone {
+      border: 2px dashed var(--border-default);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      text-align: center;
+      background: var(--bg-secondary);
+      transition: all 0.3s ease;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .upload-zone:hover {
+      border-color: var(--accent-primary);
+      background: var(--bg-hover);
+    }
+
+    .upload-zone.dragover {
+      border-color: var(--accent-primary);
+      background: var(--bg-hover);
+      transform: scale(1.02);
+    }
+
+    .upload-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .upload-icon {
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 12px;
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 20px;
+    }
+
+    .upload-text {
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .upload-hint {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    /* Form Controls */
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    select, input[type="date"] {
+      width: 100%;
+      padding: 12px 16px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-size: 14px;
+      transition: all 0.2s ease;
+    }
+
+    select:focus, input:focus {
+      outline: none;
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+    }
+
+    /* Checkbox Styles */
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 16px 0;
+    }
+
+    .custom-checkbox {
+      position: relative;
+    }
+
+    .custom-checkbox input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      margin: 0;
+    }
+
+    /* Button Styles */
+    .btn {
+      padding: 12px 24px;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      font-weight: 500;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      color: white;
+      box-shadow: var(--shadow-md);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
+    }
+
+    .btn-secondary {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-default);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: var(--bg-hover);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-top: 20px;
+    }
+
+    /* Progress Bars */
+    .progress-section {
+      background: var(--bg-secondary);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      margin-top: 20px;
+    }
+
+    .progress-item {
+      margin-bottom: 16px;
+    }
+
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: var(--bg-card);
+      border-radius: 999px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+      border-radius: 999px;
+      transition: width 0.3s ease;
+      position: relative;
+    }
+
+    .progress-fill::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+      animation: shimmer 2s infinite;
+    }
+
+    @keyframes shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+
+    /* Stats Cards */
+    .stats-grid {
+      display: grid;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: all 0.2s ease;
+    }
+
+    .stat-card:hover {
+      background: var(--bg-hover);
+      transform: translateY(-2px);
+    }
+
+    .stat-label {
+      font-size: 14px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .stat-value {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .stat-badge {
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .badge-success {
+      background: rgba(34, 197, 94, 0.2);
+      color: var(--accent-primary);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+
+    .badge-warning {
+      background: rgba(251, 191, 36, 0.2);
+      color: var(--accent-warning);
+      border: 1px solid rgba(251, 191, 36, 0.3);
+    }
+
+    /* Expandable Sections */
+    .expandable {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      margin-top: 16px;
+      overflow: hidden;
+    }
+
+    .expandable-header {
+      padding: 16px 20px;
+      cursor: pointer;
+      display: flex;
+      justify-content: between;
+      align-items: center;
+      font-weight: 500;
+      transition: background 0.2s ease;
+    }
+
+    .expandable-header:hover {
+      background: var(--bg-hover);
+    }
+
+    .expandable-content {
+      padding: 0 20px 20px;
+      color: var(--text-muted);
+      font-size: 14px;
+      white-space: pre-wrap;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    /* Status Indicator */
+    .status-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      margin-top: 12px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-primary);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Responsive Design */
+    @media (max-width: 1024px) {
+      .container {
+        grid-template-columns: 1fr;
+        gap: 24px;
+        padding: 24px 16px;
+      }
+      
+      .form-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Animations */
+    .fade-in {
+      animation: fadeIn 0.5s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .bounce-in {
+      animation: bounceIn 0.6s ease-out;
+    }
+
+    @keyframes bounceIn {
+      0% { transform: scale(0.3); opacity: 0; }
+      50% { transform: scale(1.05); }
+      70% { transform: scale(0.9); }
+      100% { transform: scale(1); opacity: 1; }
+    }
   </style>
 </head>
 <body>
-  <header>
-    <h1>TR → Source Code Filler</h1>
-    <span class="tag">Standalone • Browser‑only</span>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <div class="logo">
+        <div class="logo-icon">TR</div>
+        <h1>Source Code Filler Pro</h1>
+      </div>
+      <div class="version-badge">v4.3 • Advanced Processing</div>
+    </div>
   </header>
 
-  <main>
-    <section class="card">
-      <h2>1) Upload files</h2>
-      <div class="row">
-        <div>
-          <label>Main file (your “All Sites/Main” export)</label>
-          <input type="file" id="mainFile" accept=".xlsx,.xls,.csv" />
-          <div class="muted">Auto‑detects <code>TR</code>/<code>TR No</code> and <code>Source Code</code> headers.</div>
+  <!-- Main Container -->
+  <div class="container">
+    <!-- Left Panel - Upload & Controls -->
+    <section class="card fade-in">
+      <div class="card-header">
+        <div class="card-icon">1</div>
+        <h2>File Upload & Configuration</h2>
+      </div>
+
+      <!-- File Upload Section -->
+      <div class="form-row">
+        <div class="form-group">
+          <label>Main File (All Sites)</label>
+          <div class="upload-zone" id="mainUploadZone">
+            <div class="upload-icon">📄</div>
+            <div class="upload-text">Drop your main file here</div>
+            <div class="upload-hint">Supports .xlsx, .xls, .csv files</div>
+            <input type="file" id="mainFile" accept=".xlsx,.xls,.csv" />
+          </div>
+          <div class="upload-hint" style="margin-top: 8px;">
+            Uses <strong>PourNo</strong> (TR) and <strong>Source Code</strong> columns
+          </div>
         </div>
-        <div>
-          <label>TR Summary (colleague’s workbook)</label>
-          <input type="file" id="summaryFile" accept=".xlsx,.xls,.csv" />
-          <div class="muted">Reads only sheet <strong>TR Summary 2025</strong>. Pulls <strong>TR No.</strong> and <strong>Site</strong>.</div>
+
+        <div class="form-group">
+          <label>TR Summary File</label>
+          <div class="upload-zone" id="summaryUploadZone">
+            <div class="upload-icon">📊</div>
+            <div class="upload-text">Drop your TR summary here</div>
+            <div class="upload-hint">TR Summary 2025 sheet</div>
+            <input type="file" id="summaryFile" accept=".xlsx,.xls,.csv" />
+          </div>
+          <div class="upload-hint" style="margin-top: 8px;">
+            Reads <strong>TR Summary 2025</strong> with <strong>TR No.</strong> & <strong>Site</strong>
+          </div>
         </div>
       </div>
 
-      <div class="row" style="margin-top:12px;">
-        <div>
-          <label>When a TR has multiple values in Summary</label>
+      <!-- Configuration Options -->
+      <div class="form-row">
+        <div class="form-group">
+          <label>Conflict Resolution Rule</label>
           <select id="conflictRule">
-            <option value="latest">Prefer latest by date (auto‑detect dates)</option>
-            <option value="mostfreq">Prefer most frequent</option>
-            <option value="first">Keep first seen</option>
-            <option value="last">Keep last seen</option>
+            <option value="latest">🕒 Prefer latest by date</option>
+            <option value="mostfreq">📊 Prefer most frequent</option>
+            <option value="first">⬆️ Keep first occurrence</option>
+            <option value="last">⬇️ Keep last occurrence</option>
           </select>
         </div>
-        <div>
-          <label>Date columns in Summary (optional, comma‑separated)</label>
-          <input id="dateHints" placeholder="e.g. Date, Date Tested, Updated On" />
+
+        <div class="form-group">
+          <div class="checkbox-group">
+            <div class="custom-checkbox">
+              <input type="checkbox" id="enableDateFilter" />
+            </div>
+            <label>Enable date filtering for faster processing</label>
+          </div>
+          <div class="upload-hint">Filters TR Summary by date range if date column is detected</div>
         </div>
       </div>
 
-      <div class="row" style="margin-top:12px;">
-        <div>
-          <label>Manual override: TR header (Main)</label>
-          <input id="mainTrHeader" placeholder="auto" />
+      <!-- Date Range -->
+      <div class="form-row">
+        <div class="form-group">
+          <label>Start Date</label>
+          <input id="dateStart" type="date" />
         </div>
-        <div>
-          <label>Manual override: Source Code header (Main)</label>
-          <input id="mainScHeader" placeholder="auto" />
-        </div>
-        <div>
-          <label>Manual override: TR header (Summary)</label>
-          <input id="sumTrHeader" placeholder="auto" />
-        </div>
-        <div>
-          <label>Manual override: Site/Source header (Summary)</label>
-          <input id="sumScHeader" placeholder="Site" />
+        <div class="form-group">
+          <label>End Date</label>
+          <input id="dateEnd" type="date" />
         </div>
       </div>
 
-      <div style="display:flex; gap:10px; align-items:center; margin-top:14px;">
-        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#cbd5e1;">
-          <input type="checkbox" id="includeAudit" style="width:14px;height:14px;" /> Include audit sheet
-        </label>
-        <button id="runBtn" disabled>Run match & fill</button>
-        <button id="downloadBtn" class="secondary" disabled>Download updated main</button>
+      <!-- Action Buttons -->
+      <div class="btn-group">
+        <div class="checkbox-group">
+          <div class="custom-checkbox">
+            <input type="checkbox" id="includeAudit" />
+          </div>
+          <label>Include audit sheet in output</label>
+        </div>
+      </div>
+
+      <div class="btn-group">
+        <button id="runBtn" class="btn btn-primary" disabled>
+          🚀 Start Processing
+        </button>
+        <button id="downloadBtn" class="btn btn-secondary" disabled>
+          💾 Download Results
+        </button>
+      </div>
+
+      <!-- Progress Section -->
+      <div class="progress-section" id="progressSection" style="display: none;">
+        <h3 style="margin-bottom: 16px; color: var(--text-primary);">Processing Progress</h3>
+        
+        <div class="progress-item">
+          <div class="progress-label">
+            <span>Summary Parse</span>
+            <span id="summaryProgress">0%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="progSummary" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div class="progress-item">
+          <div class="progress-label">
+            <span>Main File Processing</span>
+            <span id="mainProgress">0%</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="progMain" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div class="status-indicator">
+          <div class="status-dot"></div>
+          <span id="statusText">Ready to start processing...</span>
+        </div>
+
+        <div id="dateColInfo" class="upload-hint" style="margin-top: 12px;"></div>
       </div>
     </section>
 
-    <section class="card">
-      <h2>2) Results</h2>
-      <div class="stat"><div>Total rows (Main)</div><div id="statTotal">–</div></div>
-      <div class="stat"><div>Rows with missing Source Code (before)</div><div id="statMissing">–</div></div>
-      <div class="stat"><div>Rows filled using TR Summary</div><div class="pill ok" id="statFilled">0</div></div>
-      <div class="stat"><div>Still unresolved (after)</div><div class="pill warn" id="statUnresolved">–</div></div>
-      <details style="margin-top:12px;"><summary>Preview unresolved TRs</summary>
-        <div id="unresolvedList" class="muted" style="margin-top:8px; white-space:pre-wrap;"></div>
-      </details>
-      <details style="margin-top:12px;"><summary>Detection report (headers & sheets)</summary>
-        <div id="detectReport" class="muted" style="margin-top:8px; white-space:pre-wrap;"></div>
-      </details>
-    </section>
-  </main>
+    <!-- Right Panel - Results -->
+    <section class="card fade-in">
+      <div class="card-header">
+        <div class="card-icon">📈</div>
+        <h2>Processing Results</h2>
+      </div>
 
-  <footer> DCT • Akhil helper — TR→Source Code filler. Pure HTML/JS. </footer>
+      <!-- Stats Grid -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div>
+            <div class="stat-label">Total Rows</div>
+            <div class="stat-value" id="statTotal">–</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div>
+            <div class="stat-label">Missing Source Codes</div>
+            <div class="stat-value" id="statMissing">–</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div>
+            <div class="stat-label">Successfully Filled</div>
+            <div class="stat-badge badge-success" id="statFilled">0</div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div>
+            <div class="stat-label">Still Unresolved</div>
+            <div class="stat-badge badge-warning" id="statUnresolved">–</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Expandable Details -->
+      <div class="expandable">
+        <div class="expandable-header" onclick="toggleExpandable('unresolvedSection')">
+          🔍 View Unresolved TRs
+          <span id="unresolvedToggle">▼</span>
+        </div>
+        <div class="expandable-content" id="unresolvedList" style="display: none;">
+          No data available yet. Run the processing to see unresolved TRs.
+        </div>
+      </div>
+
+      <div class="expandable">
+        <div class="expandable-header" onclick="toggleExpandable('detectionSection')">
+          🔧 Detection Report
+          <span id="detectionToggle">▼</span>
+        </div>
+        <div class="expandable-content" id="detectReport" style="display: none;">
+          Processing details will appear here after running the tool.
+        </div>
+      </div>
+    </section>
+  </div>
 
   <script>
+    // Original functionality preserved with enhanced UI interactions
     const $ = (id) => document.getElementById(id);
 
-    let mainWb, mainData, mainHeaders, mainSheetName;
-    let summaryWb, summaryData, summaryHeaders, summarySheetName;
+    // Fixed columns & sheet names
+    const MAIN_TR = 'PourNo';
+    const MAIN_SC = 'Source Code';
+    const SUM_TR  = 'TR No.';
+    const SUM_SC  = 'Site';
+    const SUMMARY_SHEET = 'TR Summary 2025';
+
+    // Exact date/time headers to format
+    const DATE_HEADERS = ['Date','Date Batched','Date Tested'];
+    const TIME_HEADERS = ['Time Sampled','Time Batched','Time Moulded'];
+
+    // State
+    let mainWb, mainHeaders = [], mainRows = [], mainSheetName;
+    let summaryWb, summarySheetName;
     let postFillMainData = null, auditRows = [];
 
-    const candidateTR = ['tr','trno','tr number','trnumber','trnum','tr#','test request','testrequest','wr','wrno','wr#','wrnumber'];
-    const candidateSC = ['sourcecode','source code','source_code','source','site'];
-    const candidateDate = ['date','date tested','updated on','last updated','timestamp','time','datetime','date batched'];
+    // Enhanced UI functions
+    function showProgress() {
+      $('progressSection').style.display = 'block';
+      $('progressSection').classList.add('bounce-in');
+    }
 
+    function updateProgress(elementId, percent) {
+      const progressFill = $(elementId);
+      const progressText = elementId === 'progSummary' ? $('summaryProgress') : $('mainProgress');
+      
+      progressFill.style.width = percent + '%';
+      progressText.textContent = Math.round(percent) + '%';
+    }
+
+    function toggleExpandable(sectionId) {
+      const content = sectionId === 'unresolvedSection' ? $('unresolvedList') : $('detectReport');
+      const toggle = sectionId === 'unresolvedSection' ? $('unresolvedToggle') : $('detectionToggle');
+      
+      if (content.style.display === 'none') {
+        content.style.display = 'block';
+        toggle.textContent = '▲';
+      } else {
+        content.style.display = 'none';
+        toggle.textContent = '▼';
+      }
+    }
+
+    // Drag and drop functionality
+    function setupDragDrop(zoneId, inputId) {
+      const zone = $(zoneId);
+      const input = $(inputId);
+
+      zone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        zone.classList.add('dragover');
+      });
+
+      zone.addEventListener('dragleave', () => {
+        zone.classList.remove('dragover');
+      });
+
+      zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+          input.files = files;
+          input.dispatchEvent(new Event('change'));
+        }
+      });
+    }
+
+    // Initialize drag and drop
+    setupDragDrop('mainUploadZone', 'mainFile');
+    setupDragDrop('summaryUploadZone', 'summaryFile');
+
+    // Utils (original functions preserved)
     function norm(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); }
     function normKey(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,''); }
+    function setStatus(msg){ $('statusText').textContent = msg; }
 
-    function sheetToAOA(wb, preferredName){
-      let name = wb.SheetNames[0];
-      if(preferredName && wb.Sheets[preferredName]) name = preferredName;
-      const ws = wb.Sheets[name];
-      const aoa = XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:'' });
-      return { name, aoa };
+    function getCell(ws, r, c){
+      const addr = XLSX.utils.encode_cell({ r, c });
+      const cell = ws[addr];
+      return cell ? cell.v : '';
     }
-
-    function aoaToObjects(aoa){
-      if(!aoa || !aoa.length) return { headers: [], rows: [] };
-      const headers = aoa[0].map(h=>String(h||''));
-      const rows = aoa.slice(1).map(r=>{ const o={}; headers.forEach((h,i)=>o[h]= i<r.length ? r[i] : ''); return o; });
-      return { headers, rows };
+    function coerceDate(v){
+      if(typeof v === 'number'){ const d = XLSX.SSF.parse_date_code(v); if(!d) return null; return new Date(Date.UTC(d.y,(d.m||1)-1,d.d||1)); }
+      const s = String(v||'').trim(); if(!s) return null; const t = new Date(s); if(isNaN(t.getTime())) return null;
+      return new Date(Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()));
     }
-
-    function autodetect(headers, overrideTr, overrideSc){
-      const map = headers.map(h=>({raw:h, key:normKey(h)}));
-      let trCol=null, scCol=null;
-      if(overrideTr){ const k=normKey(overrideTr); trCol = map.find(m=>m.key===k)?.raw || null; }
-      if(overrideSc){ const k=normKey(overrideSc); scCol = map.find(m=>m.key===k)?.raw || null; }
-      if(!trCol){ for(const c of candidateTR){ const hit=map.find(m=>m.key===normKey(c)); if(hit){ trCol=hit.raw; break; } } }
-      if(!scCol){ for(const c of candidateSC){ const hit=map.find(m=>m.key===normKey(c)); if(hit){ scCol=hit.raw; break; } } }
-      return { trCol, scCol };
-    }
-
-    // Extract canonical TR number digits (e.g., "S2-FGJV-QUA-TR-36263" → "36263")
     function extractTRNum(v){
       const s = String(v||'').toUpperCase();
       const m = s.match(/\bTR[^0-9]*([0-9]{3,})\b/);
@@ -159,44 +825,218 @@
       const m2 = s.match(/\b([0-9]{3,})\b/);
       return m2 ? m2[1] : '';
     }
-    // Map site names to Source Codes
     function siteToSourceCode(site){
       const s = norm(site).replace(/[_\-]+/g,' ').trim();
       if(!s) return '';
-      if(/lobs\s*hole|talbingo/.test(s)) return 'LOBS';
+      if(/lobs\s*hole|talbingo|ecvt|dt\s*0?4|backfill\s*secondary\s*grout|mar\s*263\s*grout\s*trial|tss\s*-\s*uc\s*-\s*s5/.test(s)) return 'LOBS';
       if(/tantangara/.test(s)) return 'TAN';
-      if(/marica/.test(s)) return 'MAR';
+      if(/\bmar\b|marica|marigold/.test(s)) return 'MAR';
       if(/polo\s*flat/.test(s)) return 'POLO';
       return '';
     }
 
-    function detectDates(headers, hintCsv){
-      const hints = (hintCsv||'').split(',').map(s=>norm(s)).filter(Boolean);
-      const keys = headers.map(h=>({raw:h, key:norm(h)}));
-      const res=[]; for(const h of keys){ if(candidateDate.includes(h.key) || hints.includes(h.key)) res.push(h.raw); }
-      return res;
-    }
-
-    function coerceDate(v){
-      if(typeof v === 'number'){ const d = XLSX.SSF.parse_date_code(v); if(!d) return null; return new Date(Date.UTC(d.y,(d.m||1)-1,d.d||1,d.H||0,d.M||0,d.S||0)); }
-      const s = String(v||'').trim(); if(!s) return null; const t = new Date(s); return isNaN(t.getTime())?null:t;
-    }
-
-    function buildSummaryMap(rows, trCol, scOrSiteCol, rule, dateCols){
-      const buckets = new Map(); // canonical TR -> {sc,date}[]
-      const isSiteCol = normKey(scOrSiteCol) === 'site';
-      for(const r of rows){
-        const trCanon = extractTRNum(r[trCol]); if(!trCanon) continue;
-        let sc = String(r[scOrSiteCol] ?? '').trim();
-        if(isSiteCol) sc = siteToSourceCode(sc);
-        if(!buckets.has(trCanon)) buckets.set(trCanon, []);
-        let bestDate=null; for(const dc of (dateCols||[])){ if(r.hasOwnProperty(dc)){ const d=coerceDate(r[dc]); if(d && (!bestDate || d>bestDate)) bestDate=d; } }
-        buckets.get(trCanon).push({ sc, date: bestDate });
+    // Header detection for main (requires PourNo + Source Code in top ~80 rows)
+    function findHeaderRowWith(aoa, requiredKeys){
+      for(let i=0;i<Math.min(80,aoa.length);i++){
+        const keys = (aoa[i]||[]).map(h=>normKey(h));
+        if(requiredKeys.every(k=>keys.includes(k))) return i;
       }
-      const out = new Map();
-      for(const [tr, arr] of buckets){
+      return 0;
+    }
+
+    // Writer with strict formats (dd/mm/yyyy, hh:mm), docket stays numeric/General
+    function writeWorkbookWithTypes(filename, headers, rows, auditRows, includeAudit){
+      const data = rows.map(r => { const o={}; headers.forEach(h => o[h] = r[h]); return o; });
+      const ws = XLSX.utils.json_to_sheet(data, { header: headers, skipHeader:false });
+
+      const range = XLSX.utils.decode_range(ws['!ref']);
+
+      function toExcelDate(value){
+        if(value instanceof Date){
+          const epoch = Date.UTC(1899,11,30);
+          return (value.getTime() - epoch) / (1000*60*60*24);
+        }
+        if(typeof value === 'number') return value;
+        const s = String(value||'').trim();
+        const d = new Date(s);
+        if(!isNaN(d)) return toExcelDate(new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())));
+        return value;
+      }
+
+      // Map header name -> column index
+      const headerIndex = {}; headers.forEach((h,i)=>headerIndex[h]=i);
+
+      // Apply formats only to exact header matches
+      for(const h of DATE_HEADERS){
+        if(!(h in headerIndex)) continue;
+        const C = headerIndex[h];
+        for(let R = 1; R <= range.e.r; R++){
+          const addr = XLSX.utils.encode_cell({ r:R, c:C });
+          const cell = ws[addr]; if(!cell) continue;
+          const val = toExcelDate(cell.v);
+          if(typeof val === 'number'){ ws[addr] = { v: val, t:'n', z:'dd/mm/yyyy' }; }
+        }
+      }
+      for(const h of TIME_HEADERS){
+        if(!(h in headerIndex)) continue;
+        const C = headerIndex[h];
+        for(let R = 1; R <= range.e.r; R++){
+          const addr = XLSX.utils.encode_cell({ r:R, c:C });
+          const cell = ws[addr]; if(!cell) continue;
+          if(typeof cell.v === 'number'){
+            ws[addr] = { v: cell.v, t:'n', z:'hh:mm' };
+          } else {
+            const m = String(cell.v||'').match(/^(\d{1,2}):(\d{2})/);
+            if(m){
+              const frac = (parseInt(m[1],10)/24) + (parseInt(m[2],10)/1440);
+              ws[addr] = { v: frac, t:'n', z:'hh:mm' };
+            }
+          }
+        }
+      }
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'All Sites (filled)');
+      if(includeAudit){
+        const wsAudit = XLSX.utils.json_to_sheet(auditRows, { skipHeader:false });
+        XLSX.utils.book_append_sheet(wb, wsAudit, 'TR_merge_audit');
+      }
+      XLSX.writeFile(wb, filename);
+    }
+
+    // Streaming helpers for Summary
+    function findHeaderRowStreaming(ws, R1, R2, C1, C2, requiredHeaders){
+      const req = requiredHeaders.map(normKey);
+      for(let r=R1; r<=Math.min(R1+200, R2); r++){
+        const rowHeaders = [];
+        for(let c=C1; c<=C2; c++){ rowHeaders.push(getCell(ws, r, c)); }
+        const keys = rowHeaders.map(h=>normKey(h));
+        if(req.every(k=>keys.includes(k))){
+          const idx = {}; requiredHeaders.forEach(h => { idx[h] = keys.indexOf(normKey(h)); });
+          return { headerRow: r, rowHeaders, idx };
+        }
+      }
+      return null;
+    }
+    function detectDateColFromRowHeaders(rowHeaders){
+      const candidates = ['Date','Date Tested','Updated On','Last Updated','Timestamp','Datetime','Date Batched'];
+      const normed = rowHeaders.map(h=>norm(h));
+      for(const cand of candidates.map(h=>norm(h))){
+        const pos = normed.indexOf(cand);
+        if(pos !== -1) return rowHeaders[pos];
+      }
+      return null;
+    }
+
+    // UI bindings with enhanced feedback
+    $('mainFile').addEventListener('change', async (e)=>{
+      const f=e.target.files[0]; if(!f) return;
+      setStatus('Loading main file...');
+      
+      const data=await f.arrayBuffer();
+      mainWb = XLSX.read(data,{type:'array'});
+      const ws = mainWb.Sheets[mainWb.SheetNames[0]];
+      mainSheetName = mainWb.SheetNames[0];
+
+      // Convert to AOA and detect header row with required columns
+      const aoa = XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:'' });
+      const headerRow = findHeaderRowWith(aoa, [normKey(MAIN_TR), normKey(MAIN_SC)]);
+      mainHeaders = aoa[headerRow].map(h=>String(h||''));
+      mainRows = aoa.slice(headerRow+1).map(r=>{
+        const o={}; mainHeaders.forEach((h,i)=>o[h]=(i<r.length?r[i]:'')); return o;
+      });
+
+      // Update UI
+      const zone = $('mainUploadZone');
+      zone.querySelector('.upload-text').textContent = `✅ ${f.name}`;
+      zone.querySelector('.upload-hint').textContent = `${mainRows.length} rows loaded`;
+      zone.style.borderColor = 'var(--accent-primary)';
+
+      $('runBtn').disabled = !(mainRows.length && summaryWb);
+      setStatus('Main file loaded successfully');
+    });
+
+    $('summaryFile').addEventListener('change', async (e)=>{
+      const f=e.target.files[0]; if(!f) return;
+      setStatus('Loading summary file...');
+      
+      const data=await f.arrayBuffer();
+      summaryWb = XLSX.read(data,{type:'array'});
+      summarySheetName = summaryWb.Sheets[SUMMARY_SHEET] ? SUMMARY_SHEET : summaryWb.SheetNames[0];
+      
+      // Update UI
+      const zone = $('summaryUploadZone');
+      zone.querySelector('.upload-text').textContent = `✅ ${f.name}`;
+      zone.querySelector('.upload-hint').textContent = `Using sheet: ${summarySheetName}`;
+      zone.style.borderColor = 'var(--accent-primary)';
+
+      $('runBtn').disabled = !(mainRows.length && summaryWb);
+      setStatus('Summary file loaded successfully');
+    });
+
+    $('runBtn').addEventListener('click', async ()=>{
+      if(!mainWb || !summaryWb){ alert('Please upload both files.'); return; }
+      
+      showProgress();
+      const ws = summaryWb.Sheets[summarySheetName];
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      const R1 = range.s.r, R2 = range.e.r, C1 = range.s.c, C2 = range.e.c;
+
+      updateProgress('progSummary', 0);
+      setStatus('🔍 Scanning TR Summary headers...');
+
+      const meta = findHeaderRowStreaming(ws, R1, R2, C1, C2, [SUM_TR, SUM_SC]);
+      if(!meta){ alert('Could not find TR No. and Site headers in TR Summary'); return; }
+
+      const dateColName = detectDateColFromRowHeaders(meta.rowHeaders);
+      $('dateColInfo').textContent = dateColName ? `📅 Using date column: ${dateColName}` : '⚠️ No date column detected — date filter will be ignored if enabled.';
+
+      const idxTR = meta.idx[SUM_TR];
+      const idxSC = meta.idx[SUM_SC];
+      const idxDate = dateColName ? meta.rowHeaders.indexOf(dateColName) : -1;
+
+      const enableFilter = $('enableDateFilter').checked && (idxDate >= 0);
+      const sd = $('dateStart').value ? new Date($('dateStart').value+'T00:00:00Z') : null;
+      const ed = $('dateEnd').value ? new Date($('dateEnd').value+'T00:00:00Z') : null;
+
+      const trMapArr = new Map();
+      const rowCount = R2 - meta.headerRow;
+      const chunk = 20000;
+
+      setStatus('📊 Parsing TR Summary rows...');
+      for(let base = meta.headerRow + 1; base <= R2; base += chunk){
+        const sliceEnd = Math.min(R2, base + chunk - 1);
+        for(let r = base; r <= sliceEnd; r++){
+          const tr = getCell(ws, r, C1 + idxTR);
+          const scRaw = getCell(ws, r, C1 + idxSC);
+          const trCanon = extractTRNum(tr);
+          if(!trCanon) continue;
+
+          if(enableFilter){
+            const dv = getCell(ws, r, C1 + idxDate);
+            const d = coerceDate(dv);
+            if(!d) continue;
+            if(sd && d < sd) continue;
+            if(ed && d > ed) continue;
+          }
+
+          const sc = siteToSourceCode(scRaw);
+          if(!trMapArr.has(trCanon)) trMapArr.set(trCanon, []);
+          const dLatest = (idxDate >= 0) ? coerceDate(getCell(ws, r, C1 + idxDate)) : null;
+          trMapArr.get(trCanon).push({ sc, date: dLatest });
+        }
+        const progress = ((sliceEnd - (meta.headerRow+1) + 1) / rowCount) * 100;
+        updateProgress('progSummary', progress);
+        setStatus(`📊 Parsed ${sliceEnd - (meta.headerRow+1) + 1} / ${rowCount} rows...`);
+        await new Promise(r => setTimeout(r, 0));
+      }
+
+      setStatus('🔧 Resolving TR mappings...');
+      const rule = $('conflictRule').value;
+      const resolved = new Map();
+      for(const [tr, arr] of trMapArr){
         const valids = arr.filter(x=>x.sc);
-        if(!valids.length){ out.set(tr,''); continue; }
+        if(!valids.length){ resolved.set(tr,''); continue; }
         let chosen = valids[0];
         if(rule==='last') chosen = valids[valids.length-1];
         else if(rule==='first') chosen = valids[0];
@@ -208,77 +1048,80 @@
           const withDates = valids.filter(x=>x.date);
           chosen = withDates.length ? withDates.sort((a,b)=>b.date-a.date)[0] : valids[valids.length-1];
         }
-        out.set(tr, chosen.sc);
+        resolved.set(tr, chosen.sc);
       }
-      return out; // Map canonical TR -> SC
-    }
 
-    function fillMain(mainRows, trCol, scCol, trToSc){
-      const beforeMissing = mainRows.filter(r=>!String(r[scCol]||'').trim()).length;
-      let filled=0; const unresolvedSet=new Set(); const filledAudit=[];
-      for(const r of mainRows){
-        const curSc = String(r[scCol]||'').trim(); if(curSc) continue;
-        const trCanon = extractTRNum(r[trCol]);
-        if(!trCanon){ unresolvedSet.add('∅ (blank/invalid TR)'); filledAudit.push({TR:String(r[trCol]||''), SourceCode:'', Fill:'unresolved'}); continue; }
-        const mapped = trToSc.get(trCanon) || '';
-        if(mapped){ r[scCol]=mapped; filled++; filledAudit.push({TR:trCanon, SourceCode:mapped, Fill:'filled'}); }
-        else { unresolvedSet.add(trCanon); filledAudit.push({TR:trCanon, SourceCode:'', Fill:'unresolved'}); }
+      // Fill main with chunks
+      const total = mainRows.length;
+      let filled = 0, beforeMissing = 0;
+      const unresolvedSet = new Set(); auditRows = [];
+      postFillMainData = mainRows.map(r => ({...r}));
+
+      const chunkFill = 30000;
+      for(let base = 0; base < total; base += chunkFill){
+        const sliceEnd = Math.min(total - 1, base + chunkFill - 1);
+        for(let i = base; i <= sliceEnd; i++){
+          const r = postFillMainData[i];
+          const curSc = String(r[MAIN_SC]||'').trim();
+          if(!curSc) beforeMissing++;
+          if(curSc) continue;
+          const trCanon = extractTRNum(r[MAIN_TR]);
+          if(!trCanon){ unresolvedSet.add('∅ (blank/invalid TR)'); auditRows.push({TR:String(r[MAIN_TR]||''), SourceCode:'', Fill:'unresolved'}); continue; }
+          const mapped = resolved.get(trCanon) || '';
+          if(mapped){ r[MAIN_SC]=mapped; filled++; auditRows.push({TR:trCanon, SourceCode:mapped, Fill:'filled'}); }
+          else { unresolvedSet.add(trCanon); auditRows.push({TR:trCanon, SourceCode:'', Fill:'unresolved'}); }
+        }
+        const progress = ((sliceEnd + 1) / total) * 100;
+        updateProgress('progMain', progress);
+        setStatus(`⚡ Processed ${sliceEnd + 1} / ${total} rows in main file...`);
+        await new Promise(r => setTimeout(r, 0));
       }
-      return { beforeMissing, filled, unresolved: Array.from(unresolvedSet).sort(), audit: filledAudit };
-    }
 
-    function objectsToSheet(rows){ return XLSX.utils.json_to_sheet(rows, { skipHeader:false }); }
-    function downloadWorkbook(filename, sheets){
-      const wb = XLSX.utils.book_new();
-      for(const {name,data} of sheets){
-        const ws = Array.isArray(data) && data.length && typeof data[0] === 'object' ? objectsToSheet(data) : XLSX.utils.aoa_to_sheet(data);
-        XLSX.utils.book_append_sheet(wb, ws, name);
-      }
-      XLSX.writeFile(wb, filename);
-    }
+      // Update results with animations
+      $('statTotal').textContent = String(total);
+      $('statMissing').textContent = String(beforeMissing);
+      $('statFilled').textContent = String(filled);
+      $('statUnresolved').textContent = String(beforeMissing - filled);
+      $('unresolvedList').textContent = Array.from(unresolvedSet).sort().join('\n') || '🎉 All TRs resolved successfully!';
+      $('detectReport').textContent = [
+        '📋 Detection Summary:',
+        '━━━━━━━━━━━━━━━━━━━',
+        `Main TR Column: ${MAIN_TR}`,
+        `Main Source Code Column: ${MAIN_SC}`,
+        `Summary Sheet: ${summarySheetName}`,
+        `Summary TR Column: ${SUM_TR}`,
+        `Summary Site Column: ${SUM_SC}`,
+        `Date Column: ${dateColName || 'Not detected'}`,
+        `Conflict Rule: ${rule}`,
+        `Date Filter: ${enableFilter ? 'Enabled' : 'Disabled'}`
+      ].join('\n');
+      
+      $('downloadBtn').disabled = false;
+      setStatus('✅ Processing completed successfully!');
 
-    function enableRunIfReady(){ $('runBtn').disabled = !(mainWb && summaryWb); }
-
-    $('mainFile').addEventListener('change', async (e)=>{
-      const f=e.target.files[0]; if(!f) return; const data=await f.arrayBuffer();
-      mainWb = XLSX.read(data,{type:'array'});
-      const {name,aoa} = sheetToAOA(mainWb); mainSheetName=name; const {headers,rows}=aoaToObjects(aoa); mainHeaders=headers; mainData=rows; enableRunIfReady();
-    });
-
-    $('summaryFile').addEventListener('change', async (e)=>{
-      const f=e.target.files[0]; if(!f) return; const data=await f.arrayBuffer();
-      summaryWb = XLSX.read(data,{type:'array'});
-      const {name,aoa} = sheetToAOA(summaryWb,'TR Summary 2025'); summarySheetName=name; const {headers,rows}=aoaToObjects(aoa); summaryHeaders=headers; summaryData=rows; enableRunIfReady();
-    });
-
-    $('runBtn').addEventListener('click', ()=>{
-      const report=[]; if(!mainData||!summaryData){ alert('Please upload both files.'); return; }
-      const {trCol:mTR, scCol:mSC} = autodetect(mainHeaders, $('mainTrHeader').value.trim()||null, $('mainScHeader').value.trim()||null);
-      const {trCol:sTR, scCol:sSC} = autodetect(summaryHeaders, $('sumTrHeader').value.trim()||null, $('sumScHeader').value.trim()||null);
-      report.push('Main sheet: '+mainSheetName);
-      report.push('Detected TR (Main): '+(mTR||'❌'));
-      report.push('Detected Source Code (Main): '+(mSC||'❌'));
-      report.push('Summary sheet: '+summarySheetName);
-      report.push('Detected TR (Summary): '+(sTR||'❌'));
-      report.push('Detected Site/Source (Summary): '+(sSC||'❌'));
-      const dateCols = detectDates(summaryHeaders, $('dateHints').value); report.push('Detected date columns (Summary): '+(dateCols.join(', ')||'none'));
-      if(!mTR||!mSC||!sTR||!sSC){ $('detectReport').textContent=report.join('\n'); alert('Could not auto‑detect required headers. You can set manual overrides above and try again.'); return; }
-      const rule=$('conflictRule').value; const trMap = buildSummaryMap(summaryData, sTR, sSC, rule, dateCols);
-      postFillMainData = mainData.map(r=>({...r}));
-      const {beforeMissing, filled, unresolved, audit} = fillMain(postFillMainData, mTR, mSC, trMap);
-      $('statTotal').textContent=String(mainData.length); $('statMissing').textContent=String(beforeMissing); $('statFilled').textContent=String(filled); $('statUnresolved').textContent=String(beforeMissing-filled);
-      $('unresolvedList').textContent = unresolved.join('\n') || '(none)'; $('detectReport').textContent=report.join('\n');
-      auditRows=audit; $('downloadBtn').disabled=false;
+      // Add success animation to stats
+      document.querySelectorAll('.stat-card').forEach(card => {
+        card.classList.add('bounce-in');
+      });
     });
 
     $('downloadBtn').addEventListener('click', ()=>{
       if(!postFillMainData){ alert('Run the tool first.'); return; }
       const outName = $('includeAudit').checked ? 'Main_with_SourceCodes_and_Audit.xlsx' : 'Main_with_SourceCodes.xlsx';
-      const headers = mainHeaders; const mainRowsAoa=[headers.slice()]; for(const r of postFillMainData){ mainRowsAoa.push(headers.map(h=> r[h] ?? '')); }
-      const sheets=[{name:'All Sites (filled)', data: mainRowsAoa}];
-      if($('includeAudit').checked){ sheets.push({name:'TR_merge_audit', data: auditRows}); }
-      downloadWorkbook(outName, sheets);
+      writeWorkbookWithTypes(outName, mainHeaders, postFillMainData, auditRows, $('includeAudit').checked);
+      
+      // Success feedback
+      setStatus('💾 File downloaded successfully!');
+      $('downloadBtn').style.background = 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))';
+      $('downloadBtn').style.color = 'white';
+      setTimeout(() => {
+        $('downloadBtn').style.background = '';
+        $('downloadBtn').style.color = '';
+      }, 2000);
     });
+
+    // Initialize status
+    setStatus('🚀 Ready to process your files');
   </script>
 </body>
 </html>
