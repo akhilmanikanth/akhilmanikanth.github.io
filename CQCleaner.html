@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CQ Browser Cleaner — DCT</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0f172a;--panel:#0b1220;--card:#0e1a2b;--ink:#e5e7eb;--muted:#94a3b8;--accent:#22d3ee;--accent2:#a78bfa;--ok:#22c55e}
+    *{box-sizing:border-box}
+    body{margin:0;background:radial-gradient(1200px 600px at 20% -10%,rgba(34,211,238,.15),transparent),radial-gradient(1000px 500px at 120% 0,rgba(167,139,250,.12),transparent),var(--bg);color:var(--ink);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    header{padding:24px 20px 0}
+    .wrap{max-width:1100px;margin:0 auto;padding:20px}
+    .hero{display:flex;align-items:center;gap:16px}
+    .logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 10px 30px rgba(34,211,238,.25)}
+    h1{margin:0;font-size:24px;font-weight:800;letter-spacing:.3px}
+    .sub{color:var(--muted);font-size:14px;margin-top:4px}
+    .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:18px;margin-top:18px}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:18px}
+    .card h2{margin:0 0 12px;font-size:16px}
+    label{font-size:13px;color:var(--muted)}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    input[type=file]{padding:10px;background:#0b1325;border:1px dashed rgba(255,255,255,.15);border-radius:12px;width:100%;color:var(--ink)}
+    .btn{appearance:none;border:0;border-radius:12px;padding:10px 14px;font-weight:700;color:#06111f;background:linear-gradient(135deg,var(--accent),var(--accent2));cursor:pointer;box-shadow:0 10px 30px rgba(167,139,250,.2);transition:transform .05s ease}
+    .btn:active{transform:translateY(1px)}
+    .tiny{font-size:12px;color:var(--muted)}
+    table{width:100%;border-collapse:collapse;border-radius:12px;overflow:hidden}
+    th,td{font-size:12px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.06)}
+    th{color:#a5b4fc;text-align:left;background:rgba(167,139,250,.06)}
+    .ok{color:#16a34a}
+    .log{height:150px;overflow:auto;background:#0b1325;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;white-space:pre-wrap}
+    .footer{margin-top:16px;color:var(--muted);font-size:12px}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap hero">
+      <div class="logo"></div>
+      <div>
+        <h1>CQ Browser Cleaner — DCT</h1>
+        <div class="sub">One-click: fix headers & formats for import to Concrete Quality (CQ).</div>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap grid">
+    <section class="card">
+      <h2>1) Upload your CQ Excel (.xlsx)</h2>
+      <div class="row">
+        <input id="file" type="file" accept=".xlsx" />
+        <button id="process" class="btn">Process & Download</button>
+      </div>
+      <div class="tiny" style="margin-top:6px">Picks the largest sheet automatically. Runs fully in your browser.</div>
+      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+        <span class="ok">• Adds <b>Batching Date</b> & <b>Batching Time (HH:MM)</b></span>
+        <span class="ok">• Extracts <b>TR No.</b> (numeric)</span>
+        <span class="ok">• Normalises <b>Time Sampled</b> & <b>Time Moulded</b></span>
+      </div>
+      <div style="margin-top:12px" class="row">
+        <label><input type="checkbox" id="keepTR"/> Keep original TR No. (don’t override)</label>
+      </div>
+    </section>
+
+    <aside class="card">
+      <h2>Summary</h2>
+      <div id="summary" class="tiny">No file yet.</div>
+      <h2 style="margin-top:12px">Log</h2>
+      <div id="log" class="log"></div>
+    </aside>
+
+    <section class="card" style="grid-column:1/3">
+      <h2>Preview (first 20 rows)</h2>
+      <div id="preview"></div>
+    </section>
+  </main>
+
+  <footer class="wrap footer">Made for Akhil · DCT · Runs fully in-browser · No data leaves your machine.</footer>
+
+<script>
+const logEl = document.getElementById('log');
+function log(msg){ logEl.textContent += (msg + "\n"); logEl.scrollTop = logEl.scrollHeight; }
+
+function normHeader(h){
+  if(h==null) return '';
+  return String(h).trim().replace(/[_\-.]+/g,' ').replace(/\s+/g,' ').toLowerCase();
+}
+function findHeader(cols, aliases){
+  const normed = cols.map(normHeader);
+  for(const a of aliases){
+    const i = normed.indexOf(a);
+    if(i>-1) return cols[i];
+  }
+  return null;
+}
+
+// Time → 'HH:MM'
+function excelTimeToHHMM(val){
+  if(val==null || val==="") return '';
+  // 1) JS Date
+  if (val instanceof Date) {
+    const hh = String(val.getHours()).padStart(2,'0');
+    const mm = String(val.getMinutes()).padStart(2,'0');
+    return `${hh}:${mm}`;
+  }
+  // 2) object with {h,m}
+  try{
+    if(typeof val==='object' && 'h' in val && 'm' in val){
+      const hh = String(val.h).padStart(2,'0');
+      const mm = String(val.m).padStart(2,'0');
+      return `${hh}:${mm}`;
+    }
+  }catch(e){}
+  const s = String(val).trim();
+  // 3) HH:MM or HH:MM:SS
+  let m = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if(m){
+    const hh = (+m[1]).toString().padStart(2,'0');
+    const mm = (+m[2]).toString().padStart(2,'0');
+    return `${hh}:${mm}`;
+  }
+  // 4) 6 PM / 6:30 pm
+  m = s.match(/^(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])$/);
+  if(m){
+    let hh = parseInt(m[1],10);
+    const mm = parseInt(m[2]||'0',10);
+    const ap = m[3].toLowerCase();
+    if(ap==='pm' && hh!==12) hh+=12; if(ap==='am' && hh===12) hh=0;
+    return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+  }
+  // 5) Excel serial / fraction-of-day
+  const num = Number(s);
+  if(!isNaN(num)){
+    const frac = ((num % 1)+1)%1;
+    const seconds = Math.round(frac*24*60*60);
+    const hh = String(Math.floor(seconds/3600)%24).padStart(2,'0');
+    const mm = String(Math.floor((seconds%3600)/60)).padStart(2,'0');
+    return `${hh}:${mm}`;
+  }
+  // 6) 1730 → 17:30
+  m = s.match(/^(\d{1,2})(\d{2})$/);
+  if(m){
+    const hh = m[1].padStart(2,'0');
+    const mm = m[2].padStart(2,'0');
+    return `${hh}:${mm}`;
+  }
+  return '';
+}
+
+function extractNumericTR(v){
+  if(v==null) return '';
+  const m = String(v).match(/(\d{3,})/);
+  return m? m[1] : '';
+}
+
+function addPreview(parent, rows){
+  if(!rows || !rows.length){ parent.innerHTML = '<div class="tiny">No preview</div>'; return; }
+  const table = document.createElement('table');
+  const thead = document.createElement('thead');
+  const trh = document.createElement('tr');
+  Object.keys(rows[0]).slice(0,24).forEach(k=>{ const th=document.createElement('th'); th.textContent=k; trh.appendChild(th); });
+  thead.appendChild(trh); table.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  rows.slice(0,20).forEach(r=>{
+    const tr=document.createElement('tr');
+    Object.keys(rows[0]).slice(0,24).forEach(k=>{ const td=document.createElement('td'); td.textContent = r[k]==null? '': r[k]; tr.appendChild(td); });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  parent.innerHTML=''; parent.appendChild(table);
+}
+
+async function processFile(file){
+  const keepTR = document.getElementById('keepTR').checked;
+
+  log(`Reading: ${file.name}`);
+  const data = await file.arrayBuffer();
+  const wb = XLSX.read(data, {type:'array', cellDates:true, cellNF:false, cellText:false});
+
+  // choose largest sheet
+  let picked = wb.SheetNames[0], maxCells=-1;
+  for(const n of wb.SheetNames){
+    const ws = wb.Sheets[n];
+    const r = XLSX.utils.decode_range(ws['!ref']||'A1');
+    const cells = (r.e.r - r.s.r + 1) * (r.e.c - r.s.c + 1);
+    if(cells>maxCells){ maxCells=cells; picked=n; }
+  }
+  const ws = wb.Sheets[picked];
+  const json = XLSX.utils.sheet_to_json(ws, {defval:""});
+  const headers = Object.keys(json[0]||{});
+  log(`Using sheet: ${picked} · Rows: ${json.length} · Cols: ${headers.length}`);
+
+  // find key columns (UNCHANGED except we add time moulded)
+  const dateBatchedCol = findHeader(headers,["date batched","batching date"]);
+  const timeBatchedCol = findHeader(headers,["time batched","batching time"]);
+  const timeSampledCol = findHeader(headers,["time sampled"]);
+  const timeMouldedCol = findHeader(headers,["time moulded","time molded","moulding time","molding time"]);
+  const trCol          = findHeader(headers,["pourno","pour no","tr no.","tr no","trno","tr"]);
+
+  let addedDate=0, addedTime=0, addedTR=0;
+
+  // Add/alias Batching Date
+  if(!headers.includes('Batching Date') && dateBatchedCol){
+    for(const row of json){
+      const v = row[dateBatchedCol];
+      row['Batching Date'] = v instanceof Date ? v : (v? new Date(v):"");
+    }
+    addedDate = json.length;
+  }
+
+  // Add/alias Batching Time (HH:MM)
+  if(!headers.includes('Batching Time') && timeBatchedCol){
+    for(const row of json){
+      row['Batching Time'] = excelTimeToHHMM(row[timeBatchedCol]);
+    }
+    addedTime = json.length;
+  } else if (timeBatchedCol) {
+    // If Batching Time exists but is blank, fill from Time Batched
+    for(const row of json){
+      const cur = row['Batching Time'];
+      if(cur==null || cur==="") row['Batching Time'] = excelTimeToHHMM(row[timeBatchedCol]);
+    }
+  }
+
+  // Normalise original time columns (Time Batched / Time Sampled / Time Moulded) → HH:MM
+  if (timeBatchedCol){
+    for(const row of json){ row[timeBatchedCol] = excelTimeToHHMM(row[timeBatchedCol]); }
+  }
+  if (timeSampledCol){
+    for(const row of json){ row[timeSampledCol] = excelTimeToHHMM(row[timeSampledCol]); }
+  }
+  if (timeMouldedCol){
+    for(const row of json){ row[timeMouldedCol] = excelTimeToHHMM(row[timeMouldedCol]); }
+  }
+
+  // TR No. numeric
+  if(trCol){
+    const numericName = 'TR No. (numeric)';
+    for(const row of json){ row[numericName] = extractNumericTR(row[trCol]); }
+    addedTR = json.length;
+    if(!keepTR){
+      for(const row of json){ row['TR No.'] = row[numericName]; }
+    }
+  }
+
+  // Build new worksheet with original columns + helpers; drop unused ones (unchanged)
+  const helperCols = [];
+  if(!headers.includes('Batching Date') && dateBatchedCol) helperCols.push('Batching Date');
+  if(!headers.includes('Batching Time') && timeBatchedCol) helperCols.push('Batching Time');
+  if(trCol) helperCols.push('TR No.');
+
+  const orderedCols = [...headers.filter(h=>!['TR No. (original)','Site','DORNER PRODUCTION DATE'].includes(h)), ...helperCols];
+  const outWS = XLSX.utils.json_to_sheet(json, {header: orderedCols, skipHeader:false});
+
+  // column widths & download
+  outWS['!cols'] = orderedCols.map(()=>({wch:16}));
+  const outWB = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(outWB, outWS, String(picked).substring(0,31));
+
+  const fname = file.name.replace(/\.xlsx$/i,'') + '_CQ_clean.xlsx';
+  const wbout = XLSX.write(outWB, {bookType:'xlsx', type:'array'});
+  saveAs(new Blob([wbout], {type:'application/octet-stream'}), fname);
+
+  // Summary & preview
+  document.getElementById('summary').innerHTML = `
+    <div><strong>${file.name}</strong></div>
+    <div class="tiny">Rows: ${json.length} · Cols: ${headers.length} → ${orderedCols.length}</div>
+    <div class="tiny">
+      Added:
+      <span class="ok">Batching Date: ${addedDate>0?'yes':'no'}</span> ·
+      <span class="ok">Batching Time: ${addedTime>0?'yes':'no'}</span> ·
+      <span class="ok">TR No. numeric: ${addedTR>0?'yes':'no'}</span>
+    </div>`;
+  addPreview(document.getElementById('preview'), json);
+  log('Done. Cleaned file downloaded. Import to CQ and check the result.');
+}
+
+// UI hooks (unchanged)
+const fileEl = document.getElementById('file');
+const btn = document.getElementById('process');
+btn.addEventListener('click', async ()=>{
+  const f = fileEl.files && fileEl.files[0];
+  if(!f){ log('Please choose an .xlsx file first.'); return; }
+  try{ await processFile(f);}catch(e){ console.error(e); log('ERROR: ' + (e.message||e)); }
+});
+</script>
+</body>
+</html>
