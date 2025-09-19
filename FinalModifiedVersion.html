@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>DCT's — Universal Tool</title>
+    <title>DCT's — Universal Tool (Enhanced)</title>
     <!-- Libraries (CDN, browser-only) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
@@ -257,8 +257,9 @@
         }
 
         .logo-container img {
-            width: 90px;
-            height: 90px;
+            /* Increase the logo size to make it more prominent in the top right. */
+            width: 150px;
+            height: 150px;
             object-fit: contain;
             border-radius: 0;
             transition: all 0.3s ease;
@@ -653,6 +654,48 @@
             font-weight: 500;
         }
 
+        /* Source Code Filler Styles */
+        .source-code-stats {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            margin-top: 16px;
+        }
+
+        .stats-row {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .stat-value.success {
+            color: var(--accent-primary);
+        }
+
+        .stat-value.warning {
+            color: var(--accent-warning);
+        }
+
         @media (max-width: 1024px) {
             .layout {
                 grid-template-columns: 1fr;
@@ -681,8 +724,9 @@
             }
 
             .logo-container img {
-                width: 70px;
-                height: 70px;
+                /* Maintain a larger logo on smaller screens as well */
+                width: 120px;
+                height: 120px;
             }
         }
 
@@ -973,6 +1017,70 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Source Code Filler Section -->
+                <div class="card">
+                    <div class="card-header">
+                        <strong>🔧 Optional: Auto-Fill Missing Source Codes</strong>
+                        <p>Upload TR Summary file to automatically fill missing source codes before processing</p>
+                    </div>
+                    <div class="card-content">
+                        <div class="stack">
+                            <div class="row">
+                                <input type="checkbox" id="enableSourceCodeFiller">
+                                <label for="enableSourceCodeFiller">Enable Source Code Auto-Fill</label>
+                            </div>
+
+                            <div id="sourceCodeFillerSection" style="display: none;">
+                                <div class="drop" id="trSummaryUploadZone">
+                                    <div class="drop-title">📊 TR Summary File (for Source Code filling)</div>
+                                    <div class="mini">Drop TR Summary file here</div>
+                                    <div class="help">Supports .xlsx, .xls files</div>
+                                    <input type="file" id="trSummaryFile" accept=".xlsx,.xls" style="display:none"/>
+                                </div>
+                                <div class="help" style="margin-top: 8px;">
+                                    Uses <strong>TR Summary 2025</strong> sheet with <strong>TR No.</strong> & <strong>Site</strong> columns
+                                </div>
+
+                                <div class="row" style="gap: 12px;">
+                                    <div style="flex: 1;">
+                                        <label style="display: block; margin-bottom: 4px; font-weight: 600; font-size: 12px; color: var(--muted);">Conflict Resolution</label>
+                                        <select id="weeklyConflictRule" style="background: rgba(255,255,255,0.9); border: 1px solid var(--stroke); border-radius: 12px; padding: 12px 16px; width: 100%; font-weight: 500;">
+                                            <option value="latest">🕒 Prefer latest by date</option>
+                                            <option value="mostfreq">📊 Prefer most frequent</option>
+                                            <option value="first">⬆️ Keep first occurrence</option>
+                                            <option value="last">⬇️ Keep last occurrence</option>
+                                        </select>
+                                    </div>
+                                    <div style="flex: 1;">
+                                        <div class="row">
+                                            <input type="checkbox" id="weeklyEnableDateFilter">
+                                            <label for="weeklyEnableDateFilter">Enable date filtering</label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="source-code-stats" id="sourceCodeStats" style="display: none;">
+                                    <div class="stats-row">
+                                        <div class="stat-item">
+                                            <span class="stat-label">Missing Codes:</span>
+                                            <span class="stat-value" id="scMissingCount">0</span>
+                                        </div>
+                                        <div class="stat-item">
+                                            <span class="stat-label">Filled:</span>
+                                            <span class="stat-value success" id="scFilledCount">0</span>
+                                        </div>
+                                        <div class="stat-item">
+                                            <span class="stat-label">Still Missing:</span>
+                                            <span class="stat-value warning" id="scUnresolvedCount">0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="card">
                     <div class="card-header">
                         <strong>📊 Weekly Processing Log</strong>
@@ -1024,6 +1132,9 @@
                             and comprehensive analytics — all wrapped in a beautiful, responsive interface designed for
                             <span class="about-highlight">speed</span>, <span class="about-highlight">elegance</span>,
                             and <span class="about-highlight">efficiency</span>.
+                            <br><br>
+                            <span class="about-highlight">✨ Enhanced</span> with improved site sheet organization and
+                            data filtering for optimized temperature reporting workflows.
                         </div>
                     </div>
                 </div>
@@ -1208,7 +1319,38 @@
         /* ================= XLSX helpers & mapping (FIXED DATES & TEMPS) ================= */
         const BORAL_HEADERS = ["Date","Source Code","Docket","ClientName","ProjectName","PourNo","Lots","SampleID","Specimen ID","Type","Product Code","Date Batched","Time Sampled","Time Batched","Time Moulded","Date Tested","Age Days","Age Hours","Init Curing Hrs","Std Curing Days","Grade","Density","Mass Unit Vol","Dim1","Dim2","Load Size","Progress Load","Des slmp","Measured Slump","Second Slump","Avg Diameter","Avg Height","Strength","Compact Method","Measured Air","Concrete Temp","Ambient Temp","Failure Mode","Cap","Marks","Location Description","Truck","Remarks","Rounded Density (U)","Rounded MPUV (V)","Rounded Strength (AE)"];
 
-        const TEMP_HEADERS = ["Date","Source Code","Docket","PourNo","Type","Product Code","Date Batched","Age Days","Concrete Temp","Ambient Temp","Location Description"];
+        // The main temperature extract no longer includes a "Location Description" column.
+        // Removing this column prevents clutter and makes the main and site sheets
+        // consistent.  If you still need the location text, refer back to the
+        // original dataset.
+        const TEMP_HEADERS = [
+            "Date",
+            "Source Code",
+            "Docket",
+            "PourNo",
+            "Type",
+            "Product Code",
+            "Date Batched",
+            "Age Days",
+            "Concrete Temp",
+            "Ambient Temp"
+        ];
+
+        // Headers for site‑specific temperature sheets remain unchanged (they did not
+        // include Location Description previously).  Keeping this in its own
+        // constant makes it easy to adjust ordering for site exports.
+        const SITE_TEMP_HEADERS = [
+            "Date",
+            "Source Code",
+            "Docket",
+            "PourNo",
+            "Type",
+            "Product Code",
+            "Date Batched",
+            "Age Days",
+            "Concrete Temp",
+            "Ambient Temp"
+        ];
 
         function sheetToRows_strings(file){
             return file.arrayBuffer().then(buf=>{
@@ -1413,16 +1555,10 @@
         const MAP_EXTRA_LOBS_MH=[/^MH-/i]; // starts with MH-
 
         function inferSourceFromText(txt){
-            const t = String(txt||"");
-            for(const rx of MAP_EXTRA_LOBS){
-                if(rx.test(t)) return "LOBS";
-            }
-            for(const rx of MAP_EXTRA_LOBS_MH){
-                if(rx.test(t)) return "LOBS";
-            }
-            for(const rx of MAP_EXTRA_TAN){
-                if(rx.test(t)) return "TAN";
-            }
+            // Inference of source codes from free text has been removed.  The new
+            // workflow relies exclusively on explicit mappings provided via the
+            // TR Summary file rather than pattern matching.  Always return
+            // an empty string here.
             return "";
         }
 
@@ -1458,17 +1594,14 @@
         }
 
         function autoFillSourceCodesAll(rows){
-            let filled=0;
-            for(const r of rows){
-                if(String(r["Source Code"]||"").trim()) continue;
-                const inf=inferSourceForAnyRow(r);
-                if(inf){
-                    r["Source Code"]=inf;
-                    filled++;
-                }
-            }
-            filled+=propagateTRMappings(rows);
-            return filled;
+            // Source code auto‑filling based on location description and
+            // inferred rules has been disabled.  With the introduction of
+            // the TR summary mapping feature (see the Source Code Filler
+            // section), source codes are now supplied explicitly via the
+            // uploaded TR Summary file rather than inferred from location
+            // descriptions or remarks.  This function therefore no longer
+            // performs any automatic filling and simply returns 0.
+            return 0;
         }
 
         // FIXED: Date pivot function for filtering
@@ -1988,21 +2121,29 @@
         }
 
         function tempRowsToSheet(rows){
-            const out = rows.map(r=>({
-                "Date": normalizeToDMYString(r["Date"]),
-                "Source Code": r["Source Code"]||"",
-                "Docket": r["Docket"]||"",
-                "PourNo": r["PourNo"]||"",
-                "Type": r["Type"]||"",
-                "Product Code": r["Product Code"]||"",
-                "Date Batched": normalizeToDMYString(r["Date Batched"]) || normalizeToDMYString(r["Date"]),
-                "Age Days": (r["Age Days"]!==""? intOrBlank(r["Age Days"]) : ""),
-                "Concrete Temp": (r["Concrete Temp"]!==""? numOrBlankTemp(r["Concrete Temp"]) : ""),
-                "Ambient Temp": (r["Ambient Temp"]!==""? numOrBlankTemp(r["Ambient Temp"]) : ""),
-                "Location Description": r["Location Description"]||""
-            }));
+            // Build the main temperature sheet.  We intentionally exclude the
+            // Location Description field because it is not needed for summary
+            // reporting.  For blank temperature values we omit the cell entirely
+            // (by using undefined) so that downstream consumers like Excel
+            // interpret them as missing rather than zero or an empty string.
+            const out = rows.map(r => {
+                const ctRaw = r["Concrete Temp"];
+                const atRaw = r["Ambient Temp"];
+                return {
+                    "Date": normalizeToDMYString(r["Date"]),
+                    "Source Code": r["Source Code"] || "",
+                    "Docket": r["Docket"] || "",
+                    "PourNo": r["PourNo"] || "",
+                    "Type": r["Type"] || "",
+                    "Product Code": r["Product Code"] || "",
+                    "Date Batched": normalizeToDMYString(r["Date Batched"]) || normalizeToDMYString(r["Date"]),
+                    "Age Days": (r["Age Days"] !== "" ? intOrBlank(r["Age Days"]) : ""),
+                    "Concrete Temp": (ctRaw !== "" && ctRaw != null ? numOrBlankTemp(ctRaw) : undefined),
+                    "Ambient Temp": (atRaw !== "" && atRaw != null ? numOrBlankTemp(atRaw) : undefined)
+                };
+            });
 
-            const ws = XLSX.utils.json_to_sheet(out, {header: TEMP_HEADERS, raw:true});
+            const ws = XLSX.utils.json_to_sheet(out, { header: TEMP_HEADERS, raw: true });
 
             const dateCols = ["Date","Date Batched"].map(h=> TEMP_HEADERS.indexOf(h)).filter(i=>i>=0);
             if(ws['!ref']){
@@ -2021,6 +2162,245 @@
                 }
             }
             return ws;
+        }
+
+        // NEW: Function for site-specific temperature sheets (without Location Description and sorted by Type)
+        function siteSpecificTempRowsToSheet(rows) {
+            // Sort by Type: COMP100 first, then COMPCOR, then GROCUBE, then others
+            const sortedRows = [...rows].sort((a, b) => {
+                // Normalise the type strings for comparison.  We deliberately
+                // uppercase values here to ensure case‑insensitive ordering.
+                const typeA = String(a["Type"] || "").trim().toUpperCase();
+                const typeB = String(b["Type"] || "").trim().toUpperCase();
+
+                // Define an explicit priority ordering for the temperature sheet:
+                //  1. COMP100
+                //  2. COMPCOR
+                //  3. GROCUBE
+                //  4. anything else (including Specials)
+                const getTypePriority = (type) => {
+                    if (type === "COMP100") return 1;
+                    if (type === "COMPCOR") return 2;
+                    if (type === "GROCUBE") return 3;
+                    return 4;
+                };
+
+                const priorityA = getTypePriority(typeA);
+                const priorityB = getTypePriority(typeB);
+
+                if (priorityA !== priorityB) {
+                    return priorityA - priorityB;
+                }
+                // For entries of the same priority, sort alphabetically by type.
+                return typeA.localeCompare(typeB);
+            });
+
+            // Create output without Location Description.  To avoid Excel treating
+            // blank strings as zeroes or corrupting charts, leave temperature
+            // values undefined when there is no value.  XLSX will skip those
+            // cells entirely rather than writing an empty string.
+            const out = sortedRows.map(r => {
+                const ctRaw = r["Concrete Temp"];
+                const atRaw = r["Ambient Temp"];
+                return {
+                    "Date": normalizeToDMYString(r["Date"]),
+                    "Source Code": r["Source Code"] || "",
+                    "Docket": r["Docket"] || "",
+                    "PourNo": r["PourNo"] || "",
+                    "Type": r["Type"] || "",
+                    "Product Code": r["Product Code"] || "",
+                    "Date Batched": normalizeToDMYString(r["Date Batched"]) || normalizeToDMYString(r["Date"]),
+                    "Age Days": (r["Age Days"] !== "" ? intOrBlank(r["Age Days"]) : ""),
+                    "Concrete Temp": (ctRaw !== "" && ctRaw != null ? numOrBlankTemp(ctRaw) : undefined),
+                    "Ambient Temp": (atRaw !== "" && atRaw != null ? numOrBlankTemp(atRaw) : undefined)
+                };
+            });
+
+            // Use the site-specific headers (without Location Description)
+            const ws = XLSX.utils.json_to_sheet(out, { header: SITE_TEMP_HEADERS, raw: true });
+
+            const dateCols = ["Date", "Date Batched"].map(h => SITE_TEMP_HEADERS.indexOf(h)).filter(i => i >= 0);
+            if (ws['!ref']) {
+                const range = XLSX.utils.decode_range(ws['!ref']);
+                for (const ci of dateCols) {
+                    for (let r = range.s.r + 1; r <= range.e.r; r++) {
+                        const addr = XLSX.utils.encode_cell({ r, c: ci });
+                        const s = (ws[addr] && ws[addr].v != null) ? String(ws[addr].v).trim() : "";
+                        if (!s) {
+                            ws[addr] = { t: 's', v: "" };
+                            continue;
+                        }
+                        const serial = dmyStringToSerial(s);
+                        ws[addr] = (serial == null) ? { t: 's', v: s } : { t: 'n', v: serial, z: "dd/mm/yyyy" };
+                    }
+                }
+            }
+            return ws;
+        }
+
+        /* ===== Source Code Filler Functions ===== */
+        let trSummaryData = null;
+        let sourceCodeFillerEnabled = false;
+
+        function norm(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); }
+        function normKey(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,''); }
+        
+        function getCell(ws, r, c){
+            const addr = XLSX.utils.encode_cell({ r, c });
+            const cell = ws[addr];
+            return cell ? cell.v : '';
+        }
+        
+        function coerceDate(v){
+            if(typeof v === 'number'){ 
+                const d = XLSX.SSF.parse_date_code(v); 
+                if(!d) return null; 
+                return new Date(Date.UTC(d.y,(d.m||1)-1,d.d||1)); 
+            }
+            const s = String(v||'').trim(); 
+            if(!s) return null; 
+            const t = new Date(s); 
+            if(isNaN(t.getTime())) return null;
+            return new Date(Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()));
+        }
+        
+        function extractTRNum(v){
+            const s = String(v||'').toUpperCase();
+            const m = s.match(/\bTR[^0-9]*([0-9]{3,})\b/);
+            if(m) return m[1];
+            const m2 = s.match(/\b([0-9]{3,})\b/);
+            return m2 ? m2[1] : '';
+        }
+        
+        function siteToSourceCode(site){
+            const s = norm(site).replace(/[_\-]+/g,' ').trim();
+            if(!s) return '';
+            if(/lobs\s*hole|talbingo|ecvt|dt\s*0?4|backfill\s*secondary\s*grout|mar\s*263\s*grout\s*trial|tss\s*-\s*uc\s*-\s*s5/.test(s)) return 'LOBS';
+            if(/tantangara/.test(s)) return 'TAN';
+            if(/\bmar\b|marica|marigold/.test(s)) return 'MAR';
+            if(/polo\s*flat/.test(s)) return 'POLO';
+            return '';
+        }
+
+        function findHeaderRowStreaming(ws, R1, R2, C1, C2, requiredHeaders){
+            const req = requiredHeaders.map(normKey);
+            for(let r=R1; r<=Math.min(R1+200, R2); r++){
+                const rowHeaders = [];
+                for(let c=C1; c<=C2; c++){ rowHeaders.push(getCell(ws, r, c)); }
+                const keys = rowHeaders.map(h=>normKey(h));
+                if(req.every(k=>keys.includes(k))){
+                    const idx = {}; requiredHeaders.forEach(h => { idx[h] = keys.indexOf(normKey(h)); });
+                    return { headerRow: r, rowHeaders, idx };
+                }
+            }
+            return null;
+        }
+
+        function detectDateColFromRowHeaders(rowHeaders){
+            const candidates = ['Date','Date Tested','Updated On','Last Updated','Timestamp','Datetime','Date Batched'];
+            const normed = rowHeaders.map(h=>norm(h));
+            for(const cand of candidates.map(h=>norm(h))){
+                const pos = normed.indexOf(cand);
+                if(pos !== -1) return rowHeaders[pos];
+            }
+            return null;
+        }
+
+        async function fillSourceCodes(data) {
+            if (!trSummaryData || !sourceCodeFillerEnabled) return data;
+            
+            logB('🔧 Starting Source Code Auto-Fill...');
+            
+            const ws = trSummaryData.Sheets['TR Summary 2025'] || trSummaryData.Sheets[trSummaryData.SheetNames[0]];
+            const range = XLSX.utils.decode_range(ws['!ref']);
+            const R1 = range.s.r, R2 = range.e.r, C1 = range.s.c, C2 = range.e.c;
+            
+            const meta = findHeaderRowStreaming(ws, R1, R2, C1, C2, ['TR No.', 'Site']);
+            if(!meta){ 
+                logB('❌ Could not find TR No. and Site headers in TR Summary');
+                return data; 
+            }
+            
+            const dateColName = detectDateColFromRowHeaders(meta.rowHeaders);
+            const idxTR = meta.idx['TR No.'];
+            const idxSC = meta.idx['Site'];
+            const idxDate = dateColName ? meta.rowHeaders.indexOf(dateColName) : -1;
+            
+            const enableFilter = document.getElementById('weeklyEnableDateFilter').checked && (idxDate >= 0);
+            const startDate = document.getElementById('b-start').value ? new Date(document.getElementById('b-start').value+'T00:00:00Z') : null;
+            const endDate = document.getElementById('b-end').value ? new Date(document.getElementById('b-end').value+'T00:00:00Z') : null;
+            
+            // Build TR mapping
+            const trMapArr = new Map();
+            for(let r = meta.headerRow + 1; r <= R2; r++){
+                const tr = getCell(ws, r, C1 + idxTR);
+                const scRaw = getCell(ws, r, C1 + idxSC);
+                const trCanon = extractTRNum(tr);
+                if(!trCanon) continue;
+                
+                if(enableFilter && idxDate >= 0){
+                    const dv = getCell(ws, r, C1 + idxDate);
+                    const d = coerceDate(dv);
+                    if(!d) continue;
+                    if(startDate && d < startDate) continue;
+                    if(endDate && d > endDate) continue;
+                }
+                
+                const sc = siteToSourceCode(scRaw);
+                if(!trMapArr.has(trCanon)) trMapArr.set(trCanon, []);
+                const dLatest = (idxDate >= 0) ? coerceDate(getCell(ws, r, C1 + idxDate)) : null;
+                trMapArr.get(trCanon).push({ sc, date: dLatest });
+            }
+            
+            // Resolve conflicts
+            const rule = document.getElementById('weeklyConflictRule').value;
+            const resolved = new Map();
+            for(const [tr, arr] of trMapArr){
+                const valids = arr.filter(x=>x.sc);
+                if(!valids.length){ resolved.set(tr,''); continue; }
+                let chosen = valids[0];
+                if(rule==='last') chosen = valids[valids.length-1];
+                else if(rule==='first') chosen = valids[0];
+                else if(rule==='mostfreq'){
+                    const freq=new Map(); 
+                    for(const x of valids){ freq.set(x.sc,(freq.get(x.sc)||0)+1); }
+                    let bestSc=null,bestN=-1; 
+                    for(const [sc,n] of freq){ if(n>bestN){bestN=n; bestSc=sc;} }
+                    chosen={sc:bestSc, date:null};
+                } else {
+                    const withDates = valids.filter(x=>x.date);
+                    chosen = withDates.length ? withDates.sort((a,b)=>b.date-a.date)[0] : valids[valids.length-1];
+                }
+                resolved.set(tr, chosen.sc);
+            }
+            
+            // Fill missing source codes
+            let beforeMissing = 0, filled = 0;
+            const filledData = data.map(row => {
+                const newRow = {...row};
+                const currentSC = String(row['Source Code'] || '').trim();
+                if(!currentSC) beforeMissing++;
+                if(currentSC) return newRow;
+                
+                const trCanon = extractTRNum(row['PourNo'] || row['TR'] || '');
+                if(!trCanon) return newRow;
+                
+                const mapped = resolved.get(trCanon) || '';
+                if(mapped) {
+                    newRow['Source Code'] = mapped;
+                    filled++;
+                }
+                return newRow;
+            });
+            
+            // Update stats
+            document.getElementById('scMissingCount').textContent = beforeMissing;
+            document.getElementById('scFilledCount').textContent = filled;
+            document.getElementById('scUnresolvedCount').textContent = beforeMissing - filled;
+            document.getElementById('sourceCodeStats').style.display = 'block';
+            
+            logB(`✅ Source Code Fill Complete: ${filled}/${beforeMissing} codes filled`);
+            return filledData;
         }
 
         /* ================= UI wiring (drag & drop + clicks) ================= */
@@ -2083,6 +2463,8 @@
         wireDrop('drop-lobs', 'f-lobs', 'b-lobs');
         wireDrop('drop-polo', 'f-polo', 'b-polo');
 
+        // Wire up TR Summary drag and drop
+        wireDrop('trSummaryUploadZone', 'trSummaryFile');
 
         /* ================= Buttons: build files ================= */
         const logA = (m)=>{
@@ -2178,7 +2560,7 @@
             }
         });
 
-        /* ================= Weekly (B) - FIXED DATE FILTERING ================= */
+        /* ================= Weekly (B) - ENHANCED WITH SITE-SPECIFIC IMPROVEMENTS ================= */
         function markBadge(inputId, badgeId){
             const f=document.getElementById(inputId).files[0];
             badge(badgeId, f?f.name:'No file selected', f?'ok':'');
@@ -2191,6 +2573,33 @@
                 if(id==='f-lobs') markBadge('f-lobs','b-lobs');
                 if(id==='f-polo') markBadge('f-polo','b-polo');
             }));
+
+        // Source Code Filler toggle
+        document.getElementById('enableSourceCodeFiller').addEventListener('change', function() {
+            const section = document.getElementById('sourceCodeFillerSection');
+            sourceCodeFillerEnabled = this.checked;
+            section.style.display = this.checked ? 'block' : 'none';
+        });
+
+        // TR Summary file upload
+        document.getElementById('trSummaryFile').addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            try {
+                const data = await file.arrayBuffer();
+                trSummaryData = XLSX.read(data, {type: 'array'});
+                
+                const zone = document.getElementById('trSummaryUploadZone');
+                zone.querySelector('.drop-title').textContent = `✅ ${file.name}`;
+                zone.querySelector('.mini').textContent = 'TR Summary loaded successfully';
+                zone.style.borderColor = '#22c55e';
+                
+                logB(`📊 TR Summary loaded: ${file.name}`);
+            } catch (error) {
+                logB(`❌ Error loading TR Summary: ${error.message}`);
+            }
+        });
 
         document.getElementById('btn-weekly').addEventListener('click', async ()=>{
             try{
@@ -2209,7 +2618,7 @@
                     return z;
                 });
 
-                const all=[...cBoral,...gBoral,...lobsAll,...poloAll];
+                let all=[...cBoral,...gBoral,...lobsAll,...poloAll];
                 logB("📈 Total input rows: "+all.length);
 
                 const startDate=dateFromInput(document.getElementById('b-start').value);
@@ -2217,7 +2626,7 @@
 
                 // FIXED: Improved date filtering logic
                 const beforeCount=all.length;
-                const filtered=all.filter(row=>{
+                let filtered=all.filter(row=>{
                     // If no date range specified, include all rows
                     if(!startDate && !endDate) return true;
                     
@@ -2239,6 +2648,11 @@
                 logB(`${rangeText}`);
                 logB(`🔍 Filtered: ${beforeCount} → ${filtered.length} rows`);
 
+                // Apply source code filling if enabled
+                if (sourceCodeFillerEnabled) {
+                    filtered = await fillSourceCodes(filtered);
+                }
+
                 const filledSC = autoFillSourceCodesAll(filtered);
                 logB(`🏗️ Auto-filled ${filledSC} source codes`);
 
@@ -2247,8 +2661,26 @@
                 logB(`🔧 Auto-filled ${filledType} type classifications`);
 
                 const wsMain = rowsToSheet_withTimeFix(filtered);
-                writeWB([["All Sites (Main)",wsMain]],"All_Sites_Main_Data.xlsx");
-                logB("✅ All_Sites_Main_Data.xlsx generated ("+filtered.length+" rows)");
+                // Determine the requested reporting date for file naming.  If a start
+                // date is provided, use it; otherwise fall back to the end date.
+                const startInputStr = document.getElementById('b-start').value;
+                const endInputStr   = document.getElementById('b-end').value;
+                let selected = startInputStr || endInputStr || '';
+                let dateSuffix = '';
+                if(selected){
+                    const parts = selected.split('-');
+                    if(parts.length === 3){
+                        // parts = [yyyy, mm, dd] – convert to DD.MM.YYYY
+                        const [yy, mm, dd] = parts;
+                        dateSuffix = `${dd}.${mm}.${yy}`;
+                    }
+                }
+                // Build file names.  If no date is selected we fall back to the
+                // original filenames for backwards compatibility.
+                const mainFileName = dateSuffix ? `All Sites Main ${dateSuffix}.xlsx` : "All_Sites_Main_Data.xlsx";
+                const wsMainPairs = [["All Sites (Main)", wsMain]];
+                writeWB(wsMainPairs, mainFileName);
+                logB(`✅ ${mainFileName} generated (${filtered.length} rows)`);
 
                 // Temperature Extract
                 setProgress(85,'Building Temperature Extract...');
@@ -2285,7 +2717,7 @@
 
                 const wsTempMain = tempRowsToSheet(tempRows);
 
-                // Build site-specific temperature sheets
+                // Build site-specific temperature sheets with ENHANCED FEATURES
                 const bySite = {
                     TAN: tempRows.filter(r=>{
                         const pn = String(r["ProjectName"]||"");
@@ -2309,15 +2741,24 @@
                     })
                 };
 
-                const wsT = tempRowsToSheet(bySite.TAN);
-                const wsM = tempRowsToSheet(bySite.MAR);
-                const wsP = tempRowsToSheet(bySite.POLO);
-                const wsL = tempRowsToSheet(bySite.LOBS);
+                // Inform the user about the new ordering: COMP100 first, followed by
+                // COMPCOR, then GROCUBE, with Specials/others at the end.
+                logB("🎯 Organizing site sheets by type (COMP100 → COMPCOR → GROCUBE → Specials)");
+                logB("🧹 Removing location descriptions from site sheets");
 
-                writeWB([["Main (Temperature)", wsTempMain], ["TAN", wsT], ["POLO", wsP], ["MAR", wsM], ["LOBS", wsL]], "Temperature_Extract.xlsx");
+                // Use the enhanced function for site-specific sheets
+                const wsT = siteSpecificTempRowsToSheet(bySite.TAN);
+                const wsM = siteSpecificTempRowsToSheet(bySite.MAR);
+                const wsP = siteSpecificTempRowsToSheet(bySite.POLO);
+                const wsL = siteSpecificTempRowsToSheet(bySite.LOBS);
+
+                // Build the temperature extract filename with the same date suffix
+                const tempFileName = dateSuffix ? `Temperature ${dateSuffix}.xlsx` : "Temperature_Extract.xlsx";
+                writeWB([["Main (Temperature)", wsTempMain], ["TAN", wsT], ["POLO", wsP], ["MAR", wsM], ["LOBS", wsL]], tempFileName);
 
                 logB(`🎉 Weekly reports completed successfully!`);
                 logB(`📊 Main data: ${filtered.length} rows | Temperature data: ${tempRows.length} rows`);
+                logB(`✨ Enhanced: Site sheets organized by type, location descriptions removed`);
                 logB(`${rangeText}`);
                 state.processedRows += filtered.length;
                 refreshKPI();
