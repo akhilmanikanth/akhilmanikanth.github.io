@@ -1,0 +1,2971 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DCT Universal Tool - Standalone</title>
+    
+    <!-- External Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<script>
+// --- AGE FIELD NORMALIZER (NO CALCULATION) ---
+// Rule: if Age Days contains "24h/24 h/18H/18hrs" etc -> move number to Age Hours, clear Age Days.
+// Otherwise keep Age Days as-is. Never compute days from hours.
+function splitAgeDaysHours(rawAgeDays, rawAgeHours) {
+  function firstSafe(v) {
+    if (v === undefined || v === null) return "";
+    if (Array.isArray(v)) return v.length ? (v[0] ?? "") : "";
+    return v;
+  }
+  const ageDaysVal = firstSafe(rawAgeDays);
+  const ageHoursVal = firstSafe(rawAgeHours);
+  const hoursAlready = String(ageHoursVal ?? "").trim() !== "";
+
+  if (typeof ageDaysVal === "string") {
+    const s = ageDaysVal.trim();
+    const m = s.match(/^(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours)\b/i);
+    if (m) {
+      const num = m[1];
+      return { ageDays: "", ageHours: hoursAlready ? ageHoursVal : num };
+    }
+    if (/^\d+(?:\.\d+)?$/.test(s)) {
+      return { ageDays: s, ageHours: ageHoursVal };
+    }
+    return { ageDays: s, ageHours: ageHoursVal };
+  }
+  return { ageDays: ageDaysVal, ageHours: ageHoursVal };
+}
+</script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        /* Custom styles for better UI */
+        .sidebar-gradient {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        
+        .progress-bar {
+            background: linear-gradient(90deg, #3b82f6, #06b6d4, #8b5cf6);
+            background-size: 200% 200%;
+            animation: gradient 2s ease infinite;
+        }
+        
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .drop-zone {
+            border: 2px dashed #cbd5e1;
+            transition: all 0.3s ease;
+        }
+        
+        .drop-zone:hover {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+        
+        .drop-zone.drag-over {
+            border-color: #3b82f6;
+            background-color: #dbeafe;
+        }
+        
+        .drop-zone.has-file {
+            border-color: #10b981;
+            background-color: #ecfdf5;
+        }
+        
+        .log-container {
+            background: #0f172a;
+            color: #e2e8f0;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            overflow-y: auto;
+            height: 200px;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+        }
+        
+        .cq-cleaner-container {
+            width: 100%;
+        }
+        
+        .cq-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+        
+        .cq-main-card, .cq-summary-card, .cq-preview-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .cq-main-card h2, .cq-summary-card h3, .cq-preview-card h3 {
+            margin: 0 0 16px 0;
+            font-size: 18px;
+            font-weight: 700;
+            color: #1e293b;
+        }
+        
+        .cq-upload-row {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .cq-file-input {
+            flex: 1;
+            padding: 12px;
+            border: 2px dashed #cbd5e1;
+            border-radius: 8px;
+            background: #f8fafc;
+            color: #475569;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .cq-file-input:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+        
+        .cq-btn {
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+        
+        .cq-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+        }
+        
+        .cq-btn:active {
+            transform: translateY(0);
+        }
+        
+        .cq-subtitle {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 16px;
+        }
+        
+        .cq-features {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 16px;
+            padding: 16px;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+        }
+        
+        .cq-feature {
+            font-size: 13px;
+            color: #166534;
+            font-weight: 600;
+        }
+        
+        .cq-options {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .cq-checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: #475569;
+            cursor: pointer;
+        }
+        
+        .cq-checkbox {
+            width: 16px;
+            height: 16px;
+            accent-color: #3b82f6;
+        }
+        
+        .cq-summary-content {
+            font-size: 14px;
+            color: #64748b;
+        }
+        
+        .cq-preview-content {
+            font-size: 14px;
+            color: #64748b;
+            text-align: center;
+            padding: 32px;
+        }
+        
+        .cq-preview-table {
+            width: 100%;
+            border-collapse: collapse;
+            border-radius: 8px;
+            overflow: hidden;
+            font-size: 12px;
+        }
+        
+        .cq-preview-table th,
+        .cq-preview-table td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .cq-preview-table th {
+            background: #f1f5f9;
+            font-weight: 600;
+            color: #475569;
+        }
+        
+        .cq-preview-table td {
+            color: #64748b;
+        }
+        
+        .cq-preview-table tr:hover {
+            background: #f8fafc;
+        }
+        
+        @media (max-width: 1024px) {
+            .cq-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 font-sans">
+    <!-- Progress Overlay -->
+    <div id="progressOverlay" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl p-8 max-w-md w-full mx-4 shadow-2xl">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-slate-900">Processing Data...</h3>
+                <span class="text-2xl">🚚</span>
+            </div>
+            
+            <div class="mb-4">
+                <div class="h-2 bg-slate-200 rounded-full overflow-hidden">
+                    <div id="progressBar" class="h-full progress-bar rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <div class="text-center">
+                <p id="progressMessage" class="text-sm text-slate-600 font-medium">Initializing...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex min-h-screen">
+        <!-- Sidebar -->
+        <aside class="sticky top-0 h-screen flex flex-col gap-0 p-6 bg-white border-r border-slate-200 shadow-sm z-10 w-72">
+            <div class="flex items-center justify-center p-4 border border-slate-200 rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 mb-6">
+                <img 
+                    src="https://images.squarespace-cdn.com/content/v1/5cd0cfbcca525b3945e19180/aea7fbe8-c3bd-4c90-ac1a-16facc91424a/FGJV_Colour_PMS.png?format=500w" 
+                    alt="Geotester Logo" 
+                    class="w-30 h-auto object-contain transition-transform duration-300 hover:scale-105"
+                />
+            </div>
+            
+            <div class="flex items-center gap-3 p-4 rounded-xl bg-white border border-slate-200 mb-6 transition-all duration-200">
+                <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 via-cyan-500 to-purple-500 flex items-center justify-center text-white font-bold shadow-sm">
+                    D
+                </div>
+                <div class="flex-1">
+                    <div class="font-bold text-slate-900 text-sm">Akhil's DCT</div>
+                    <div class="text-xs text-slate-600 font-medium">Universal Tool</div>
+                </div>
+                <span class="px-2 py-1 bg-emerald-500 text-white text-xs font-bold rounded-lg">
+                    Pro
+                </span>
+            </div>
+<script>
+  // --- Keep sidebar text fixed ---
+  document.addEventListener("DOMContentLoaded", () => {
+    const nameBox = document.querySelector(".font-bold.text-slate-900.text-sm");
+    if (nameBox) nameBox.textContent = "Akhil's DCT";
+
+    const observer = new MutationObserver(() => {
+      nameBox.textContent = "Akhil's DCT";
+    });
+    observer.observe(nameBox, { childList: true, characterData: true, subtree: true });
+  });
+</script>
+
+            <div class="space-y-6">
+                <div>
+                    <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 px-3">
+                        Main
+                    </div>
+                    <nav class="space-y-1">
+                        <button onclick="showSection('dashboard')" id="nav-dashboard" class="nav-btn w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-semibold transition-all duration-200 bg-blue-500 text-white shadow-sm">
+                            <span>📊</span>
+                            Dashboard
+                        </button>
+                        <button onclick="showSection('convert')" id="nav-convert" class="nav-btn w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-semibold transition-all duration-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900">
+                            <span>🔄</span>
+                            Convert & Merge
+                        </button>
+                        <button onclick="showSection('weekly')" id="nav-weekly" class="nav-btn w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-semibold transition-all duration-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900">
+                            <span>📅</span>
+                            Weekly Summary
+                        </button>
+                        <button onclick="showSection('cqcleaner')" id="nav-cqcleaner" class="nav-btn w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-semibold transition-all duration-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900">
+                            <span>📄</span>
+                            CQ Cleaner
+                        </button>
+                    </nav>
+                </div>
+                
+                <div>
+                    <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 px-3">
+                        Tools
+                    </div>
+                    <nav class="space-y-1">
+                        <button onclick="showSection('logs')" id="nav-logs" class="nav-btn w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-semibold transition-all duration-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900">
+                            <span>📄</span>
+                            Activity Logs
+                        </button>
+                        <button onclick="showSection('about')" id="nav-about" class="nav-btn w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-semibold transition-all duration-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900">
+                            <span>ℹ️</span>
+                            About
+                        </button>
+                    </nav>
+                </div>
+            </div>
+
+            <div class="mt-auto p-3 bg-blue-50 border border-blue-200 rounded-lg text-center">
+                <p class="text-xs text-blue-700 font-medium">
+                    🔒 100% browser‑only<br />
+                    Files stay on your machine
+                </p>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 p-8">
+            <div class="mb-8">
+                <h1 class="text-3xl font-bold text-slate-900 mb-2">
+                    Welcome back dct.sony! 👋
+                </h1>
+                <p class="text-slate-600 text-lg font-medium">
+                    Let's process some data and generate amazing reports.
+                </p>
+            </div>
+
+            <!-- Dashboard Section -->
+            <div id="dashboard-section" class="section">
+                <div class="space-y-8">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200 border-l-4 border-l-blue-500">
+                            <div class="p-6">
+                                <div class="flex items-center justify-between mb-3">
+                                    <span class="text-sm font-semibold text-slate-600">Rows Processed</span>
+                                    <span class="text-xl">📊</span>
+                                </div>
+                                <div id="processedRows" class="text-3xl font-black text-slate-900 mb-1">0</div>
+                                <div class="text-xs text-slate-500">Total data processed</div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200 border-l-4 border-l-emerald-500">
+                            <div class="p-6">
+                                <div class="flex items-center justify-between mb-3">
+                                    <span class="text-sm font-semibold text-slate-600">Files Generated</span>
+                                    <span class="text-xl">📁</span>
+                                </div>
+                                <div id="filesExported" class="text-3xl font-black text-slate-900 mb-1">0</div>
+                                <div class="text-xs text-slate-500">Export files created</div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200 border-l-4 border-l-purple-500">
+                            <div class="p-6">
+                                <div class="flex items-center justify-between mb-3">
+                                    <span class="text-sm font-semibold text-slate-600">Last Export</span>
+                                    <span class="text-xl">⏰</span>
+                                </div>
+                                <div id="lastExport" class="text-lg font-black text-slate-900 mb-1 truncate">—</div>
+                                <div class="text-xs text-slate-500">Most recent file</div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200 border-l-4 border-l-amber-500">
+                            <div class="p-6">
+                                <div class="flex items-center justify-between mb-3">
+                                    <span class="text-sm font-semibold text-slate-600">System Status</span>
+                                    <span class="text-xl">✅</span>
+                                </div>
+                                <div class="text-lg font-black text-slate-900 mb-1">Ready</div>
+                                <div class="text-xs text-slate-500">All systems operational</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2 bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200">
+                            <div class="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50">
+                                <h3 class="text-lg font-bold text-slate-900">📈 Concrete vs Shortcrete Analysis</h3>
+                                <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-bold border bg-emerald-50 border-emerald-300 text-emerald-700">Live Updates</span>
+                            </div>
+                            <div class="p-6">
+                                <div class="h-64 relative mb-6">
+                                    <canvas id="analysisChart"></canvas>
+                                </div>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div class="text-center p-4 bg-slate-50 rounded-lg border border-slate-200">
+                                        <div id="concretePerc" class="text-2xl font-black text-blue-600 mb-1">0%</div>
+                                        <div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Concrete Share</div>
+                                    </div>
+                                    <div class="text-center p-4 bg-slate-50 rounded-lg border border-slate-200">
+                                        <div id="shortcretePerc" class="text-2xl font-black text-purple-600 mb-1">0%</div>
+                                        <div class="text-xs font-semibold text-slate-600 uppercase tracking-wider">Shortcrete Share</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200">
+                            <div class="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50">
+                                <h3 class="text-lg font-bold text-slate-900">📋 Export History</h3>
+                                <button onclick="clearHistory()" class="inline-flex items-center gap-2 px-2 py-1 rounded-lg font-bold text-sm transition-all duration-200 shadow-sm bg-cyan-500 text-white hover:bg-cyan-600 hover:shadow-md text-xs h-auto">
+                                    Clear All
+                                </button>
+                            </div>
+                            <div class="p-6">
+                                <div id="historyList" class="space-y-3">
+                                    <div class="text-sm text-slate-500">
+                                        No exports yet — your generated files will appear here
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Convert Section -->
+            <div id="convert-section" class="section hidden">
+                <div class="space-y-8">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200">
+                            <div class="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50">
+                                <h3 class="text-lg font-bold text-slate-900">🏗️ Concrete Processing</h3>
+                                <span id="concreteStatus" class="inline-flex items-center px-2 py-1 rounded-md text-xs font-bold border bg-amber-50 border-amber-300 text-amber-700">Waiting for files</span>
+                            </div>
+                            <div class="p-6 space-y-4">
+                                <div class="drop-zone border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all duration-200" onclick="selectFile('cyl')">
+                                    <div class="space-y-2">
+                                        <div class="font-semibold text-slate-900 text-sm">📄 Concrete Summary – One Line per Cylinder</div>
+                                        <div id="cylFile" class="text-xs text-slate-500">Drop file here or click to browse</div>
+                                        <span id="cylBadge" class="inline-flex items-center px-2 py-1 rounded-md text-xs font-bold border bg-amber-50 border-amber-300 text-amber-700">Required</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="drop-zone border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all duration-200" onclick="selectFile('field')">
+                                    <div class="space-y-2">
+                                        <div class="font-semibold text-slate-900 text-sm">📊 Concrete Field Summary</div>
+                                        <div id="fieldFile" class="text-xs text-slate-500">Drop file here or click to browse</div>
+                                        <span id="fieldBadge" class="inline-flex items-center px-2 py-1 rounded-md text-xs font-bold border bg-amber-50 border-amber-300 text-amber-700">Required</span>
+                                    </div>
+                                </div>
+                                
+                                <button id="generateConcrete" onclick="generateConcrete()" disabled class="w-full inline-flex items-center gap-2 px-4 py-3 rounded-lg font-bold text-sm transition-all duration-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed bg-emerald-500 text-white hover:bg-emerald-600 hover:shadow-md">
+                                    ⬇️ Generate Concrete_Boral.xlsx
+                                </button>
+                                
+                                <p class="text-sm text-slate-600">
+                                    Transform Geotester's Concrete data into Boral-compatible format
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200">
+                            <div class="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50">
+                                <h3 class="text-lg font-bold text-slate-900">🧪 Grout Processing</h3>
+                                <span id="groutStatus" class="inline-flex items-center px-2 py-1 rounded-md text-xs font-bold border bg-amber-50 border-amber-300 text-amber-700">Waiting for files</span>
+                            </div>
+                            <div class="p-6 space-y-4">
+                                <div class="drop-zone border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all duration-200" onclick="selectFile('cube')">
+                                    <div class="space-y-2">
+                                        <div class="font-semibold text-slate-900 text-sm">📋 Grout — One Line per Cube</div>
+                                        <div id="cubeFile" class="text-xs text-slate-500">Drop file here or click to browse</div>
+                                        <span id="cubeBadge" class="inline-flex items-center px-2 py-1 rounded-md text-xs font-bold border bg-amber-50 border-amber-300 text-amber-700">Required</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="drop-zone border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all duration-200" onclick="selectFile('gse')">
+                                    <div class="space-y-2">
+                                        <div class="font-semibold text-slate-900 text-sm">📈 Grout Summary Export</div>
+                                        <div id="gseFile" class="text-xs text-slate-500">Drop file here or click to browse</div>
+                                        <span id="gseBadge" class="inline-flex items-center px-2 py-1 rounded-md text-xs font-bold border bg-white border-slate-300 text-slate-600">Optional</span>
+                                    </div>
+                                </div>
+                                
+                                <button id="generateGrout" onclick="generateGrout()" disabled class="w-full inline-flex items-center gap-2 px-4 py-3 rounded-lg font-bold text-sm transition-all duration-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed bg-cyan-500 text-white hover:bg-cyan-600 hover:shadow-md">
+                                    ⬇️ Generate Grout_Boral.xlsx
+                                </button>
+                                
+                                <p class="text-sm text-slate-600">
+                                    Transform Geotester's Grout data into Boral-compatible format
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200">
+                        <div class="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50">
+                            <h3 class="text-lg font-bold text-slate-900">🔍 Processing Activity Log</h3>
+                        </div>
+                        <div class="p-6">
+                            <div id="convertLog" class="log-container">🚀 System ready for processing...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Weekly Section -->
+            <div id="weekly-section" class="section hidden">
+                <div class="space-y-8">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200">
+                            <div class="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50">
+                                <h3 class="text-lg font-bold text-slate-900">📁 Boral Files Upload</h3>
+                            </div>
+                            <div class="p-6 space-y-4">
+                                <div class="drop-zone border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all duration-200" onclick="selectFile('boralc')">
+                                    <div class="space-y-2">
+                                        <div class="font-semibold text-slate-900 text-sm">Concrete_Boral.xlsx</div>
+                                        <div id="boralcFile" class="text-xs text-slate-500">Drop file here or click to browse</div>
+                                        <span id="boralcBadge" class="inline-flex items-center px-2 py-1 rounded-md text-xs font-bold border bg-white border-slate-300 text-slate-600">Optional</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="drop-zone border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all duration-200" onclick="selectFile('boralg')">
+                                    <div class="space-y-2">
+                                        <div class="font-semibold text-slate-900 text-sm">Grout_Boral.xlsx</div>
+                                        <div id="boralgFile" class="text-xs text-slate-500">Drop file here or click to browse</div>
+                                        <span id="boralgBadge" class="inline-flex items-center px-2 py-1 rounded-md text-xs font-bold border bg-white border-slate-300 text-slate-600">Optional</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200">
+                            <div class="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50">
+                                <h3 class="text-lg font-bold text-slate-900">🏗️ Site-Specific Files</h3>
+                            </div>
+                            <div class="p-6 space-y-4">
+                                <div class="drop-zone border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all duration-200" onclick="selectFile('lobs')">
+                                    <div class="space-y-2">
+                                        <div class="font-semibold text-slate-900 text-sm">Lobs Hole – All Samples</div>
+                                        <div id="lobsFile" class="text-xs text-slate-500">Drop file here or click to browse</div>
+                                        <span id="lobsBadge" class="inline-flex items-center px-2 py-1 rounded-md text-xs font-bold border bg-white border-slate-300 text-slate-600">Optional</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="drop-zone border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all duration-200" onclick="selectFile('polo')">
+                                    <div class="space-y-2">
+                                        <div class="font-semibold text-slate-900 text-sm">Polo Flat – All Samples</div>
+                                        <div id="poloFile" class="text-xs text-slate-500">Drop file here or click to browse</div>
+                                        <span id="poloBadge" class="inline-flex items-center px-2 py-1 rounded-md text-xs font-bold border bg-white border-slate-300 text-slate-600">Optional</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200">
+                            <div class="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50">
+                                <h3 class="text-lg font-bold text-slate-900">📅 Date Range Filter</h3>
+                            </div>
+                            <div class="p-6 space-y-4">
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                                            Start Date
+                                        </label>
+                                        <input
+                                            type="date"
+                                            id="startDate"
+                                            class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-900 text-sm"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                                            End Date
+                                        </label>
+                                        <input
+                                            type="date"
+                                            id="endDate"
+                                            class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-900 text-sm"
+                                        />
+                                    </div>
+                                </div>
+                                
+                                <button onclick="generateWeekly()" class="w-full inline-flex items-center gap-2 px-4 py-3 rounded-lg font-bold text-sm transition-all duration-200 shadow-sm bg-emerald-500 text-white hover:bg-emerald-600 hover:shadow-md">
+                                    🚀 Generate Weekly Reports
+                                </button>
+                                
+                                <p class="text-xs text-slate-600">
+                                    Outputs: <code class="bg-slate-100 px-1 rounded">All_Sites_Main_Data.xlsx</code> and{' '}
+                                    <code class="bg-slate-100 px-1 rounded">Temperature_Extract.xlsx</code>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    
+                    <!-- Source Code Auto-Fill (added) -->
+                    <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200">
+                        <div class="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50">
+                            <h3 class="text-lg font-bold text-slate-900">🔧 Optional: Auto-Fill Missing Source Codes</h3>
+                            <span class="text-sm text-slate-500 font-medium">Upload TR Summary file to automatically fill missing source codes before processing</span>
+                        </div>
+                        <div class="p-6 space-y-4">
+                            <label class="flex items-center gap-2 text-slate-700 font-medium">
+                                <input type="checkbox" id="enableSourceCodeFiller" class="w-4 h-4 accent-blue-600">
+                                <span>Enable Source Code Auto-Fill</span>
+                            </label>
+
+                            <div id="sourceCodeFillerSection" class="space-y-4 hidden">
+                                <div id="trSummaryUploadZone" class="drop-zone border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all duration-200">
+                                    <div class="space-y-1">
+                                        <div class="font-semibold text-slate-900 text-sm">📊 TR Summary File (for Source Code filling)</div>
+                                        <div class="text-xs text-slate-500">Drop TR Summary file here</div>
+                                        <div class="text-xs text-slate-500">Supports .xlsx, .xls files</div>
+                                    </div>
+                                    <input type="file" id="trSummaryFile" accept=".xlsx,.xls" class="hidden" />
+                                </div>
+
+                                <p class="text-sm text-slate-600">
+                                    Uses <strong>TR Summary 2025</strong> sheet with <strong>TR No.</strong> &amp; <strong>Site</strong> columns
+                                </p>
+
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                                            Conflict Resolution
+                                        </label>
+                                        <select id="weeklyConflictRule" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-slate-900 text-sm">
+                                            <option value="latest">🕒 Prefer latest by date</option>
+                                            <option value="mostfreq">📊 Prefer most frequent</option>
+                                            <option value="first">⬆️ Keep first occurrence</option>
+                                            <option value="last">⬇️ Keep last occurrence</option>
+                                        </select>
+                                    </div>
+                                    <label class="flex items-center gap-2 text-slate-700 font-medium">
+                                        <input type="checkbox" id="weeklyEnableDateFilter" class="w-4 h-4 accent-blue-600">
+                                        <span>Enable date filtering</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+<div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200">
+                        <div class="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50">
+						
+				
+                            <h3 class="text-lg font-bold text-slate-900">📊 Weekly Processing Log</h3>
+                        </div>
+                        <div class="p-6">
+                            <div id="weeklyLog" class="log-container">📋 Weekly report system ready...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CQ Cleaner Section -->
+            <div id="cqcleaner-section" class="section hidden">
+                <div class="space-y-8">
+                    <div class="cq-cleaner-container">
+                        <div class="cq-grid">
+                            <section class="cq-main-card">
+                                <h2>🧹 Upload your CQ Excel (.xlsx)</h2>
+                                <div class="cq-upload-row">
+                                    <input id="cq-file" type="file" accept=".xlsx" class="cq-file-input" />
+                                    <!-- Added onclick to ensure CQ button always triggers even if event listeners fail -->
+                                    <button id="cq-process" class="cq-btn" onclick="handleCQProcess()">Process & Download</button>
+                                </div>
+                                <div class="cq-subtitle">Picks the largest sheet automatically. Runs fully in your browser.</div>
+                                <div class="cq-features">
+                                    <span class="cq-feature">✅ Adds <strong>Batching Date</strong> & <strong>Batching Time (HH:MM)</strong></span>
+                                    <span class="cq-feature">✅ Extracts <strong>TR No.</strong> (numeric)</span>
+                                    <span class="cq-feature">✅ Normalises <strong>Time Sampled</strong> & <strong>Time Moulded</strong></span>
+                                </div>
+                                <div class="cq-options">
+                                    <label class="cq-checkbox-label">
+                                        <input type="checkbox" id="cq-keepTR" class="cq-checkbox" />
+                                        Keep original TR No. (don't override)
+                                    </label>
+                                    <label class="cq-checkbox-label">
+                                        <input type="checkbox" id="cq-perSite" class="cq-checkbox" />
+                                        Also download per-site files (TAN / LOBS / MAR)
+                                    </label>
+                                </div>
+                            </section>
+
+                            <aside class="cq-summary-card">
+                                <h3>📊 Summary</h3>
+                                <div id="cq-summary" class="cq-summary-content">No file processed yet.</div>
+                            </aside>
+                        </div>
+
+                        <section class="cq-preview-card">
+                            <h3>👁️ Data Preview (first 20 rows)</h3>
+                            <div id="cq-preview" class="cq-preview-content">No preview available. Process a file to see data preview.</div>
+                        </section>
+                    </div>
+
+                    <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200">
+                        <div class="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50">
+                            <h3 class="text-lg font-bold text-slate-900">🔍 Processing Activity Log</h3>
+                        </div>
+                        <div class="p-6">
+                            <div id="cqLog" class="log-container">🧹 CQ Cleaner ready for processing...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Logs Section -->
+            <div id="logs-section" class="section hidden">
+                <div class="space-y-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200">
+                            <div class="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50">
+                                <h3 class="text-lg font-bold text-slate-900">🔄 Convert & Merge Activity</h3>
+                            </div>
+                            <div class="p-6">
+                                <div id="convertLogView" class="log-container">📝 Conversion activity will appear here...</div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200">
+                            <div class="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50">
+                                <h3 class="text-lg font-bold text-slate-900">📈 Weekly Report Activity</h3>
+                            </div>
+                            <div class="p-6">
+                                <div id="weeklyLogView" class="log-container">📊 Weekly report activity will appear here...</div>
+                            </div>
+                        </div>
+
+                        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200">
+                            <div class="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50">
+                                <h3 class="text-lg font-bold text-slate-900">🧹 CQ Cleaner Activity</h3>
+                            </div>
+                            <div class="p-6">
+                                <div id="cqLogView" class="log-container">🧹 CQ Cleaner activity will appear here...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+           <!-- About Section -->
+            <div id="about-section" class="section hidden">
+                <div class="space-y-6">
+                    <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200">
+                        <div class="flex items-center justify-between p-6 border-b border-slate-200 bg-slate-50">
+                            <h3 class="text-lg font-bold text-slate-900">ℹ️ About DCT’s Universal Tool (Enhanced)</h3>
+                        </div>
+                        <div class="p-6">
+                            <div class="prose prose-slate max-w-none">
+                                <p class="text-base leading-relaxed text-slate-700 mb-4">
+                                    🚀 Re‑engineered by 
+                                    <span class="bg-gradient-to-r from-blue-600 via-cyan-600 to-purple-600 bg-clip-text text-transparent font-semibold">
+                                        Akhil Manikanth
+                                    </span>
+                                    , this enhanced 
+                                    <span class="bg-gradient-to-r from-blue-600 via-cyan-600 to-purple-600 bg-clip-text text-transparent font-semibold">
+                                        Universal Dashboard
+                                    </span>
+                                    takes <strong>Quest → Boral</strong> conversions and weekly reporting to a new level. It retains the 100% browser‑only architecture—your data never leaves your machine—while adding smarter features and a streamlined interface.
+                                </p>
+
+                                <p class="text-base leading-relaxed text-slate-700 mb-4">
+                                    Built with 
+                                    <span class="bg-gradient-to-r from-blue-600 via-cyan-600 to-purple-600 bg-clip-text text-transparent font-semibold">
+                                        React
+                                    </span>
+                                    , 
+                                    <span class="bg-gradient-to-r from-blue-600 via-cyan-600 to-purple-600 bg-clip-text text-transparent font-semibold">
+                                        TypeScript
+                                    </span>
+                                    , 
+                                    <span class="bg-gradient-to-r from-blue-600 via-cyan-600 to-purple-600 bg-clip-text text-transparent font-semibold">
+                                        Chart.js (4.4.4)
+                                    </span>
+                                    and 
+                                    <span class="bg-gradient-to-r from-blue-600 via-cyan-600 to-purple-600 bg-clip-text text-transparent font-semibold">
+                                        XLSX.js
+                                    </span>
+                                    , the new UI uses modern CSS variables and the Inter font for a clean, responsive design. Live analytics now compare Concrete vs Grout and display a rolling export history, so you always know what’s been processed.
+                                </p>
+
+                                <p class="text-base leading-relaxed text-slate-700 mb-4">
+                                    New capabilities include 
+                                    <span class="bg-gradient-to-r from-blue-600 via-cyan-600 to-purple-600 bg-clip-text text-transparent font-semibold">
+                                        site‑specific uploads (Lobs Hole, Polo Flat)
+                                    </span>
+                                    , an optional 
+                                    <span class="bg-gradient-to-r from-blue-600 via-cyan-600 to-purple-600 bg-clip-text text-transparent font-semibold">
+                                        auto‑fill for missing TR source codes
+                                    </span>
+                                    , and 
+                                    <span class="bg-gradient-to-r from-blue-600 via-cyan-600 to-purple-600 bg-clip-text text-transparent font-semibold">
+                                        richer data filtering
+                                    </span>
+                                    for temperature reporting. 
+                                    <span class="bg-gradient-to-r from-blue-600 via-cyan-600 to-purple-600 bg-clip-text text-transparent font-semibold">
+                                        Drag‑and‑drop uploads
+                                    </span>
+                                    , coloured status tags, and confetti‑powered celebrations make day‑to‑day use both efficient and satisfying.
+                                </p>
+
+                                <p class="text-base leading-relaxed text-slate-700">
+                                    In short, it’s faster, clearer and more powerful—while still delivering lightning‑fast conversions, intelligent weekly reports and advanced data mapping. Enjoy 
+                                    <span class="bg-gradient-to-r from-blue-600 via-cyan-600 to-purple-600 bg-clip-text text-transparent font-semibold">
+                                        speed
+                                    </span>
+                                    , 
+                                    <span class="bg-gradient-to-r from-blue-600 via-cyan-600 to-purple-600 bg-clip-text text-transparent font-semibold">
+                                        elegance
+                                    </span>
+                                    and 
+                                    <span class="bg-gradient-to-r from-blue-600 via-cyan-600 to-purple-600 bg-clip-text text-transparent font-semibold">
+                                        efficiency
+                                    </span>
+                                    , with zero compromise on privacy.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Footer -->
+    <footer class="text-center py-10 mt-16 border-t border-slate-200 bg-slate-50">
+        <p class="text-slate-600 font-medium">
+            © 2025 Akhil Manikanth • DCT Universal Tool • 
+        </p>
+    </footer>
+
+    <script>
+        // Global state
+        let appState = {
+            processedRows: 0,
+            filesExported: 0,
+            lastExport: '—',
+            concreteCount: 0,
+            shortcreteCount: 0
+        };
+
+        let files = {
+            cyl: null,
+            field: null,
+            cube: null,
+            gse: null,
+            boralc: null,
+            boralg: null,
+            lobs: null,
+            polo: null
+        };
+
+        let logs = {
+            convert: '🚀 System ready for processing...',
+            weekly: '📋 Weekly report system ready...',
+            cq: '🧹 CQ Cleaner ready for processing...'
+        };
+
+        let chart = null;
+
+        // Utility functions
+        function getV(row, keys) {
+            for (const k of keys) {
+                if (k in row) {
+                    const v = row[k];
+                    if (String(v).trim() !== "") return String(v);
+                }
+            }
+            return "";
+        }
+
+        function first(...vals) {
+            for (const v of vals) {
+                const s = String(v ?? "").trim();
+                if (s) return s;
+            }
+            return "";
+        }
+
+        function numOrBlankTemp(v) {
+            const s = String(v ?? "").trim();
+            if (!s || s === "0" || s === "0.0") return "";
+            const n = Number(s.replace(/[^0-9.\-]/g, ""));
+            return (Number.isFinite(n) && n !== 0) ? n : "";
+        }
+
+        function numOrBlank(v) {
+            const s = String(v ?? "").trim();
+            if (!s || s === "0") return "";
+            const n = Number(s.replace(/[^0-9.\-]/g, ""));
+            return Number.isFinite(n) ? n : "";
+        }
+
+        function intOrBlank(v) {
+            const n = numOrBlank(v);
+            return n === "" ? "" : Math.round(Number(n));
+        }
+// ---- Boral rounding helpers ----
+function mroundExcel(value, multiple) {
+  if (value === "" || value == null) return "";
+  const n = Number(value);
+  const m = Math.abs(Number(multiple));
+  if (!isFinite(n) || !isFinite(m) || m === 0) return "";
+  return Math.round(n / m) * m;  // Excel-style MROUND
+}
+
+function roundStrengthBoral(strVal) {
+  if (strVal === "" || strVal == null) return "";
+  const n = Number(strVal);
+  if (!isFinite(n)) return "";
+  return (n < 10)
+    ? Math.round(n * 10) / 10
+    : Math.round(n / 0.5) * 0.5;
+}
+
+        function normalizeToDMYString(val) {
+            if (val === undefined || val === null) return "";
+            const s = String(val).trim();
+            if (!s) return "";
+
+            // Try DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY first
+            let m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+            if (m) {
+                let dd = +m[1], mm = +m[2], yy = +m[3];
+                if (yy < 100) yy = 2000 + yy;
+                
+                if (dd <= 12 && mm > 12) {
+                    [dd, mm] = [mm, dd];
+                }
+                
+                const d = new Date(yy, mm - 1, dd);
+                if (!isNaN(d.getTime()) && d.getFullYear() === yy && d.getMonth() === mm - 1 && d.getDate() === dd) {
+                    return `${String(dd).padStart(2, "0")}/${String(mm).padStart(2, "0")}/${yy}`;
+                }
+                return "";
+            }
+
+            // Try YYYY/MM/DD or YYYY-MM-DD format
+            m = s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);
+            if (m) {
+                let yy = +m[1], mm = +m[2], dd = +m[3];
+                const d = new Date(yy, mm - 1, dd);
+                if (!isNaN(d.getTime()) && d.getFullYear() === yy && d.getMonth() === mm - 1 && d.getDate() === dd) {
+                    return `${String(dd).padStart(2, "0")}/${String(mm).padStart(2, "0")}/${yy}`;
+                }
+                return "";
+            }
+
+            // Excel serial number
+            if (/^\d+(\.\d+)?$/.test(s)) {
+                const n = Number(s);
+                if (n > 1) {
+                    const utc = Math.round((n - 25569) * 86400 * 1000);
+                    const d = new Date(utc);
+                    if (!isNaN(d.getTime())) {
+                        return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+                    }
+                }
+            }
+
+            return "";
+        }
+
+        function dmyStringToSerial(dmy) {
+            const m = dmy.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+            if (!m) return null;
+            const dd = +m[1], mm = +m[2], yy = +m[3];
+            const utc = Date.UTC(yy, mm - 1, dd);
+            return (utc - Date.UTC(1899, 11, 30)) / 86400000;
+        }
+
+        function parseTimeToFraction(v) {
+            if (v === undefined || v === null) return null;
+            let s = String(v).trim();
+            if (!s) return null;
+
+            if (/^[0-9]+(\.[0-9]+)?$/.test(s)) {
+                const n = Number(s);
+                if (n >= 0 && n < 1) return n;
+                if (n > 1 && n < 86400) return n / 86400;
+            }
+
+            let m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+            if (m) {
+                const hh = +m[1], mm = +m[2], ss = +(m[3] || 0);
+                if (hh < 24 && mm < 60 && ss < 60) return (hh * 3600 + mm * 60 + ss) / 86400;
+            }
+
+            m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AP]M)$/i);
+            if (m) {
+                let hh = +m[1], mm = +m[2], ss = +(m[3] || 0);
+                const ap = m[4].toUpperCase();
+                if (ap === "PM" && hh < 12) hh += 12;
+                if (ap === "AM" && hh === 12) hh = 0;
+                if (hh < 24 && mm < 60 && ss < 60) return (hh * 3600 + mm * 60 + ss) / 86400;
+            }
+            return null;
+        }
+
+        function loadAny(file) {
+            if (!file) return Promise.resolve([]);
+            return /\.csv$/i.test(file.name) ? csvToRows_strings(file) : sheetToRows_strings(file);
+        }
+
+        function sheetToRows_strings(file) {
+            return file.arrayBuffer().then(buf => {
+                const wb = XLSX.read(buf, { type: "array", cellDates: false });
+                let best = { name: wb.SheetNames[0], rows: 0 };
+                for (const n of wb.SheetNames) {
+                    const r = XLSX.utils.sheet_to_json(wb.Sheets[n], { defval: "", raw: false }).length;
+                    if (r > best.rows) best = { name: n, rows: r };
+                }
+                const ws = wb.Sheets[best.name];
+                return XLSX.utils.sheet_to_json(ws, { defval: "", raw: false });
+            });
+        }
+
+        function csvToRows_strings(file) {
+            return file.text().then(txt => {
+                const wb = XLSX.read(txt, { type: "string" });
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                return XLSX.utils.sheet_to_json(ws, { defval: "", raw: false });
+            });
+        }
+
+        function rowsToSheet_withTimeFix(rows) {
+            const BORAL_HEADERS = ["Date", "Source Code", "Docket", "ClientName", "ProjectName", "PourNo", "Lots", "SampleID", "Specimen ID", "Type", "Product Code", "Date Batched", "Time Sampled", "Time Batched", "Time Moulded", "Date Tested", "Age Days", "Age Hours", "Init Curing Hrs", "Std Curing Days", "Grade", "Density", "Mass Unit Vol", "Dim1", "Dim2", "Load Size", "Progress Load", "Des slmp", "Measured Slump", "Second Slump", "Avg Diameter", "Avg Height", "Strength", "Compact Method", "Measured Air", "Concrete Temp", "Ambient Temp", "Failure Mode", "Cap", "Marks", "Location Description", "Truck", "Remarks", "Rounded Density (U)", "Rounded MPUV (V)", "Rounded Strength (AE)"];
+
+            const out = rows.map(r => {
+                const z = { ...r };
+                if ("Date" in z) {
+                    const s = normalizeToDMYString(z["Date"]);
+                    if (s) z["Date"] = s;
+                    z["Date Batched"] = s || z["Date Batched"];
+                }
+                if ("Date Tested" in z) {
+                    const sT = normalizeToDMYString(z["Date Tested"]);
+                    if (sT) z["Date Tested"] = sT;
+                }
+                if (z["Source Code"]) {
+                    z["Source Code"] = String(z["Source Code"]).trim().toUpperCase();
+                }
+                return z;
+            });
+
+            const ws = XLSX.utils.json_to_sheet(out, { defval: "", raw: true });
+
+            const header = XLSX.utils.sheet_to_json(ws, { header: 1 })[0] || [];
+            const timeCols = ["Time Sampled", "Time Batched", "Time Moulded"]
+                .map(h => header.indexOf(h))
+                .filter(i => i >= 0);
+
+            if (ws['!ref'] && timeCols.length) {
+                const range = XLSX.utils.decode_range(ws['!ref']);
+                for (const ci of timeCols) {
+                    for (let r = range.s.r + 1; r <= range.e.r; r++) {
+                        const addr = XLSX.utils.encode_cell({ r, c: ci });
+                        const cell = ws[addr];
+                        const raw = (cell && cell.v != null) ? String(cell.v).trim() : "";
+                        if (!raw) {
+                            ws[addr] = { t: 's', v: "" };
+                            continue;
+                        }
+                        const frac = parseTimeToFraction(raw);
+                        ws[addr] = (frac == null) ? { t: 's', v: raw } : { t: 'n', v: frac, z: "hh:mm" };
+                    }
+                }
+            }
+
+ if (ws['!ref']) {
+  const range = XLSX.utils.decode_range(ws['!ref']);
+
+  // numeric-like columns that must stay BLANK when empty/zero
+  const numCols = BORAL_HEADERS
+    .map((h, i) => ([
+      "Density", "Mass Unit Vol", "Dim1", "Dim2",
+      "Load Size", "Progress Load",
+      "Des slmp", "Measured Slump", "Second Slump",
+      "Avg Diameter", "Avg Height",
+      "Strength", "Measured Air",
+      "Concrete Temp", "Ambient Temp",
+      "Init Curing Hrs", "Std Curing Days", // include curing columns
+      "Age Hours"                           // include age hours too
+    ].includes(h) ? i : -1))
+    .filter(i => i !== -1);
+
+  const dateCols = BORAL_HEADERS
+    .map((h, i) => (["Date", "Date Batched", "Date Tested"].includes(h) ? i : -1))
+    .filter(i => i !== -1);
+
+  // helper: treat "", "0", "0.0", "00", etc as "no data"
+  const isBlanky = (s) => {
+    const t = String(s ?? "").trim();
+    if (!t) return true;
+    return /^0+(\.0+)?$/.test(t); // looks like zero => treat as blank for these fields
+  };
+
+for (let r = range.s.r + 1; r <= range.e.r; r++) {
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c });
+      const cell = ws[addr];
+      if (!cell) continue;
+
+      const raw = (cell.v == null) ? "" : String(cell.v).trim();
+
+      // 1) numeric-like fields → keep blanks BLANK (not 0)
+      if (numCols.includes(c)) {
+        if (isBlanky(raw)) {
+          ws[addr] = { t: "s", v: "" }; // true blank cell in Excel
+          continue;
+        }
+        const n = Number(raw.replace(/[^0-9.\-]/g, ""));
+        if (Number.isFinite(n)) {
+          ws[addr] = { t: "n", v: n };
+        } else {
+          ws[addr] = { t: "s", v: raw };
+        }
+        continue;
+      }
+
+      // 2) dates → unchanged
+      if (dateCols.includes(c)) {
+        const s = normalizeToDMYString(raw);
+        if (s) {
+          const serial = dmyStringToSerial(s);
+          if (serial != null) ws[addr] = { t: "n", v: serial, z: "dd/mm/yyyy" };
+        }
+      }
+    }
+  }
+}
+
+            return ws;
+        }
+
+        function writeWB(sheets, name) {
+            const wb = XLSX.utils.book_new();
+            for (const [title, ws] of sheets) {
+                XLSX.utils.book_append_sheet(wb, ws, title);
+            }
+            XLSX.writeFile(wb, name);
+        }
+
+        // Data mapping functions
+        const CONCRETE_FIELDS = {
+            wr: ["WR #", "Work Request", "WR"],
+            docket: ["Docket #", "Docket", "Ticket", "Ticket #"],
+            client: ["Client Name", "Client"],
+            project: ["Project Name", "Project"],
+            plant: ["Plant"],
+            sampledDate: ["Sampled Date", "Date Sampled", "Date"],
+            sampleId: ["Sample #", "Sample ID", "SampleID"],
+            sampleSuffix: ["Sample (eg A,B,C)", "Sample eg A,B,C", "Sample (A/B/C)"],
+            mould: ["Mould Number", "Mold Number"],
+            class: ["Class"],
+            mix: ["Supplier Mix Code", "Mix Code", "MixCode"],
+            dateBatched: ["Date Batched"],
+            timeSampled: ["Time Sampled"],
+            timeBatched: ["Time Batched"],
+            timeMoulded: ["Time Moulded"],
+            dateTested: ["Date Tested", "Test Date"],
+            ageDays: ["Age Days", "Age (days)", "Age Day"],
+            avgMPUV: ["Average Mass per Unit Volume"],
+            addMPUV: ["Additional Mass per Unit Volume"],
+            avgDiam: ["Average Diameter", "Avg Diameter", "Diameter"],
+            height: ["Height of Specimen", "Avg Height", "Height"],
+            loadSize: ["Load size (m3)", "Load Size"],
+            progress: ["Progress (m3)", "Progress Load"],
+            ordSlump: ["Ordered Slump", "Design Slump"],
+            slump: ["Slump", "Measured Slump"],
+            strength: ["Strength", "Compressive Strength"],
+            compact: ["Compact Method"],
+            air: ["Air Content", "Measured Air", "Air Cured"],
+            concTemp: ["Concrete Temp", "Concrete Temperature"],
+            ambTemp: ["Ambient Temp", "Ambient Temperature"],
+            breakType: ["Break Type", "Failure Mode"],
+            comments: ["Comments", "Worksheet Comments", "Pour Location / Remarks", "Remarks"],
+            truck: ["Truck #", "Truck"],
+            clientRef: ["Client Ref. #", "Client Ref #"],
+            wrLocation: ["Work Request Location", "Sampling Location", " Worksheet Comments", "Worksheet Comments"]
+        };
+
+        const GROUT_FIELDS = {
+            wr: ["WR #", "Work Request", "WR"],
+            docket: ["Docket #", "Docket", "Ticket", "Ticket #"],
+            client: ["Client Name", "Client"],
+            project: ["Project Name", "Project"],
+            sampledDate: ["Sampled Date", "Date Sampled", "Date"],
+            timeSampled: ["Time Sampled"],
+            timeBatched: ["Time Batched"],
+            timeMoulded: ["Time Moulded"],
+            dateTested: ["Date Tested", "Test Date"],
+            ageDays: ["Age Days", "Age (days)", "Age Day"],
+            sampleId: ["Sample #", "Sample ID", "SampleID"],
+            sampleSuffix: ["Sample (eg A,B,C)", "Sample eg A,B,C", "Sample (A/B/C)"],
+            mix: ["Supplier Mix Code", "Mix Code", "MixCode"],
+            avgMPUV: ["Average Mass per Unit Volume"],
+            addMPUV: ["Additional Mass per Unit Volume"],
+            avgDiam: ["Average Diameter", "Avg Diameter", "Diameter"],
+            height: ["Height of Specimen", "Avg Height", "Height"],
+            loadSize: ["Load size (m3)", "Load size (m³)", "Load Size"],
+            progress: ["Progress (m3)", "Progress (m³)", "Progress Load"],
+            conc: ["Consistency"],
+            concTemp: ["Concrete Temp", "Concrete Temperature"],
+            ambTemp: ["Ambient Temp", "Ambient Temperature"],
+            failure: ["Break Type", "Failure Mode"],
+            grade: ["Grade"],
+            mould: ["Mould Number", "Mold Number"],
+            remarks: ["Comments"],
+            locdesc: ["Pour Location / Remarks", "Work Request Location", "Sampling Location"],
+            truck: ["Truck #", "Truck"],
+            exportClientRef: ["Client Ref. #", "Client Ref #"]
+        };
+
+        function mapSourceCode(plant) {
+            const p = String(plant || "").trim().toLowerCase();
+            if (p.startsWith("tantangara")) return "TAN";
+            if (p.startsWith("marica")) return "MAR";
+            if (p.startsWith("polo")) return "POLO";
+            if (p.startsWith("lobs")) return "LOBS";
+            return plant ? String(plant).trim() : "";
+        }
+
+        function findTR(s) {
+            const m = String(s || "").match(/\bTR\s*\d+\b/i);
+            return m ? m[0].replace(/\s+/g, " ").toUpperCase() : "";
+        }
+
+        function buildConcreteBoral(rowsCyl, rowsField) {
+            const fieldMap = new Map();
+            for (const r of rowsField) {
+                const key = String(getV(r, CONCRETE_FIELDS.wr) || "").trim();
+                if (!key) continue;
+                if (!fieldMap.has(key)) fieldMap.set(key, {});
+                const tgt = fieldMap.get(key);
+                for (const k of Object.keys(r)) {
+                    const v = String(r[k] ?? "").trim();
+                    if (v && !(k in tgt)) tgt[k] = v;
+                }
+            }
+
+            const out = [];
+            for (const r of rowsCyl) {
+                const wr = String(getV(r, CONCRETE_FIELDS.wr) || "").trim();
+                const f = fieldMap.get(wr) || {};
+                const plant = first(getV(r, CONCRETE_FIELDS.plant), f["Plant"]);
+                const client = first(getV(r, CONCRETE_FIELDS.client), f["Client"]);
+                const project = first(getV(r, CONCRETE_FIELDS.project), f["Project Name"]);
+                const pourFromRef = first(...CONCRETE_FIELDS.clientRef.map(k => f[k]));
+                const trFromText = first(
+                    findTR(getV(r, CONCRETE_FIELDS.comments)),
+                    findTR(f["Worksheet Comments"]),
+                    findTR(f["Sampling Location"])
+                );
+                const pourNo = first(pourFromRef, trFromText, (wr ? `TR ${wr}` : ""));
+                const sampleNo = getV(r, CONCRETE_FIELDS.sampleId) || "";
+                const sampleSuf = getV(r, CONCRETE_FIELDS.sampleSuffix) || "";
+                const mould = getV(r, CONCRETE_FIELDS.mould) || "";
+                const sampleID = sampleNo || mould;
+                const specID = (sampleNo ? (sampleNo + (sampleSuf || "")) : mould);
+
+                const density = (getV(r, CONCRETE_FIELDS.avgMPUV) ? intOrBlank(getV(r, CONCRETE_FIELDS.avgMPUV)) : "");
+                const muvol = (getV(r, CONCRETE_FIELDS.addMPUV) ? intOrBlank(getV(r, CONCRETE_FIELDS.addMPUV)) : "");
+                const strength = (getV(r, CONCRETE_FIELDS.strength) ? numOrBlank(getV(r, CONCRETE_FIELDS.strength)) : "");
+
+                const avgDia = numOrBlank(getV(r, CONCRETE_FIELDS.avgDiam));
+                const height = numOrBlank(getV(r, CONCRETE_FIELDS.height));
+                const loadSz = numOrBlank(getV(r, CONCRETE_FIELDS.loadSize));
+                const progLd = numOrBlank(getV(r, CONCRETE_FIELDS.progress));
+                // Slump handling:
+                // For cylinder rows, take the slump only from the cylinder file. Do NOT fall back to the field summary here.
+                // The field summary slump will be written separately in slump-only rows below.
+                const desSl = numOrBlank(first(getV(r, CONCRETE_FIELDS.ordSlump), f["Ordered Slump"]));
+                const measSl = numOrBlank(getV(r, CONCRETE_FIELDS.slump));
+                const secondSl = "";
+
+                const cTemp = numOrBlankTemp(first(getV(r, CONCRETE_FIELDS.concTemp), f["Concrete Temperature"]));
+                const aTemp = numOrBlankTemp(first(getV(r, CONCRETE_FIELDS.ambTemp), f["Ambient Temperature"]));
+
+                const docketStr = first(getV(r, CONCRETE_FIELDS.docket), f["Docket #"]);
+                const truckFromField = first(f["Truck"], f["Truck #"]);
+                const remarksFromField = first(f["Remarks"], f["Worksheet Comments"], f["Pour Location / Remarks"]);
+
+                const row = {
+                    "Date": first(getV(r, CONCRETE_FIELDS.sampledDate), f["Date Sampled"]),
+                    "Source Code": mapSourceCode(plant),
+                    "Docket": docketStr,
+                    "ClientName": client,
+                    "ProjectName": project,
+                    "PourNo": pourNo,
+                    "Lots": "",
+                    "SampleID": sampleID,
+                    "Specimen ID": specID,
+                    "Type": first(getV(r, CONCRETE_FIELDS.class)) || "COMP100",
+                    "Product Code": first(getV(r, CONCRETE_FIELDS.mix), f["Supplier Mix Code"]),
+                    "Date Batched": first(getV(r, CONCRETE_FIELDS.dateBatched)),
+                    "Time Sampled": first(getV(r, CONCRETE_FIELDS.timeSampled)),
+                    "Time Batched": first(getV(r, CONCRETE_FIELDS.timeBatched)),
+                    "Time Moulded": first(getV(r, CONCRETE_FIELDS.timeMoulded)),
+                    "Date Tested": first(getV(r, CONCRETE_FIELDS.dateTested)),
+                    "Age Days": splitAgeDaysHours(getV(r, CONCRETE_FIELDS.ageDays), "").ageDays,
+                    "Age Hours": splitAgeDaysHours(getV(r, CONCRETE_FIELDS.ageDays), "").ageHours,
+                    "Init Curing Hrs": "",
+                    "Std Curing Days": "",
+                    "Grade": "",
+                    "Density": density,
+                    "Mass Unit Vol": muvol,
+                    "Dim1": avgDia,
+                    "Dim2": height,
+                    "Load Size": loadSz,
+                    "Progress Load": progLd,
+                    "Des slmp": desSl,
+                    "Measured Slump": measSl,
+                    "Second Slump": secondSl,
+                    "Avg Diameter": avgDia,
+                    "Avg Height": height,
+                    "Strength": strength,
+                    "Compact Method": first(getV(r, CONCRETE_FIELDS.compact)),
+                    "Measured Air": (getV(r, CONCRETE_FIELDS.air) ? numOrBlank(getV(r, CONCRETE_FIELDS.air)) : ""),
+                    "Concrete Temp": cTemp,
+                    "Ambient Temp": aTemp,
+                    "Failure Mode": first(getV(r, CONCRETE_FIELDS.breakType)),
+                    "Cap": first(getV(r, CONCRETE_FIELDS.mould)) ? String(getV(r, CONCRETE_FIELDS.mould)) : "",
+                    "Marks": "",
+                    "Location Description": String(first(
+                        f["Pour Location / Remarks"],
+                        f["Worksheet Comments"],
+                        f["Sampling Location"],
+                        getV(r, CONCRETE_FIELDS.comments)
+                    ) || "").trim(),
+                    "Truck": first(truckFromField, getV(r, CONCRETE_FIELDS.truck)),
+                    "Remarks": first(remarksFromField, getV(r, CONCRETE_FIELDS.comments), f["Sampling Location"]),
+                    "Rounded Density (U)": (density  === "" ? "" : mroundExcel(Number(density), 20)),
+                    "Rounded MPUV (V)":   (muvol    === "" ? "" : mroundExcel(Number(muvol),   10)),
+					"Rounded Strength (AE)": (strength === "" ? "" : roundStrengthBoral(Number(strength))),
+                };
+                out.push(row);
+            }
+            // After processing all cylinder rows, append slump-only rows from the field summary.
+            for (const fr of rowsField) {
+                // Only add a slump-only row if a non-empty Slump value exists on the field row.
+                const slumpVal = numOrBlank(fr["Slump"]);
+                if (slumpVal !== "") {
+                    // Extract base values from the field row using existing helpers where possible
+                    const fDateSampled = getV(fr, CONCRETE_FIELDS.sampledDate);
+                    const fPlant = getV(fr, CONCRETE_FIELDS.plant);
+                    const fClient = getV(fr, CONCRETE_FIELDS.client);
+                    const fProject = getV(fr, CONCRETE_FIELDS.project);
+                    const fDocket = getV(fr, CONCRETE_FIELDS.docket);
+                    // Determine PourNo using the same logic as cylinder rows
+                    const fPourRef = first(...CONCRETE_FIELDS.clientRef.map(k => fr[k]));
+                    const fTrFromText = first(
+                        findTR(fr["Worksheet Comments"]),
+                        findTR(fr["Sampling Location"])
+                    );
+                    const fWr = String(getV(fr, CONCRETE_FIELDS.wr) || "").trim();
+                    const fPourNo = first(fPourRef, fTrFromText, (fWr ? `TR ${fWr}` : ""));
+                    // Other optional numeric and text fields
+                    const fDesSl = numOrBlank(fr["Ordered Slump"]);
+                    const fLoadSize = numOrBlank(fr["Load Size"]);
+                    const fProgress = numOrBlank(fr["Progress"]);
+                    const fConcreteTemp = numOrBlankTemp(fr["Concrete Temperature"]);
+                    const fAmbientTemp = numOrBlankTemp(fr["Ambient Temperature"]);
+                    const fTruck = first(fr["Truck"], fr["Truck #"]);
+                    const fLocationDesc = String(first(
+                        fr["Pour Location / Remarks"],
+                        fr["Worksheet Comments"],
+                        fr["Sampling Location"]
+                    ) || "").trim();
+                    const fRemarks = String(first(
+                        fr["Remarks"],
+                        fr["Worksheet Comments"],
+                        fr["Pour Location / Remarks"]
+                    ) || "").trim();
+                    const slumpRow = {
+                        "Date": fDateSampled,
+                        "Source Code": mapSourceCode(fPlant),
+                        "Docket": fDocket,
+                        "ClientName": fClient,
+                        "ProjectName": fProject,
+                        "PourNo": fPourNo,
+                        "Lots": "",
+                        "SampleID": "",
+                        "Specimen ID": "",
+                        "Type": "",
+                        "Product Code": getV(fr, CONCRETE_FIELDS.mix),
+                        "Date Batched": "",
+                        "Time Sampled": String(fr["Time Sampled"] ?? "").trim(),
+                        "Time Batched": String(fr["Time Batched"] ?? "").trim(),
+                        "Time Moulded": "",
+                        "Date Tested": "",
+                        "Age Days": "",
+                        "Age Hours": "",
+                        "Init Curing Hrs": "",
+                        "Std Curing Days": "",
+                        "Grade": String(fr["Grade"] ?? "").trim(),
+                        "Density": "",
+                        "Mass Unit Vol": "",
+                        "Dim1": "",
+                        "Dim2": "",
+                        "Load Size": fLoadSize,
+                        "Progress Load": fProgress,
+                        "Des slmp": fDesSl,
+                        "Measured Slump": slumpVal,
+                        "Second Slump": "",
+                        "Avg Diameter": "",
+                        "Avg Height": "",
+                        "Strength": "",
+                        "Compact Method": "",
+                        "Measured Air": "",
+                        "Concrete Temp": fConcreteTemp,
+                        "Ambient Temp": fAmbientTemp,
+                        "Failure Mode": "",
+                        "Cap": "",
+                        "Marks": "",
+                        "Location Description": fLocationDesc,
+                        "Truck": fTruck,
+                        "Remarks": fRemarks,
+                        "Rounded Density (U)": "",
+                        "Rounded MPUV (V)": "",
+                        "Rounded Strength (AE)": "",
+                    };
+                    out.push(slumpRow);
+                }
+            }
+            return out;
+        }
+
+        // Grout source code inference patterns
+        const MAP_TAN = [/\bR19(2[1-9]|30)\b/i, /\bTBM3\b/i, /\bHRT-?01\b/i, /Intake\s*C3\s*Grout\s*Testing/i];
+        const MAP_MAR = [/Marica\s*ADIT\s*Portal/i];
+        const MAP_LOBS = [/\bJunction\b/i, /\bTalbingo\b/i, /\bTH\b|\bTransforming\s*Hall\b/i, /\bECV\b/i, /\bCTB\b/i];
+        const ONLY_TR = /^(?=.*\bTR\s*\d+\b)(?!.*(Junction|Talbingo|TBM3|HRT|R19)).*$/i;
+
+        function inferGroutSourceIfMissing(existing, location, remarks) {
+            const sc = String(existing || "").trim();
+            if (sc) return sc;
+            const combined = `${String(location || "").trim()} ${String(remarks || "").trim()}`.trim();
+            if (!combined) return "";
+            if (ONLY_TR.test(combined)) return "";
+            for (const rx of MAP_TAN) {
+                if (rx.test(combined)) return "TAN";
+            }
+            for (const rx of MAP_MAR) {
+                if (rx.test(combined)) return "MAR";
+            }
+            for (const rx of MAP_LOBS) {
+                if (rx.test(combined)) return "LOBS";
+            }
+            return "";
+        }
+
+        function buildGroutBoral(rowsCube, rowsExport) {
+            const mapRef = new Map();
+            for (const r of rowsExport || []) {
+                const wr = String(getV(r, GROUT_FIELDS.wr) || "").trim();
+                const pref = first(...GROUT_FIELDS.exportClientRef.map(k => r[k]));
+                if (wr && pref && !mapRef.has(wr)) mapRef.set(wr, pref);
+            }
+
+            const out = [];
+            for (const r of rowsCube) {
+                const wr = String(getV(r, GROUT_FIELDS.wr) || "").trim();
+                const sampleNo = getV(r, GROUT_FIELDS.sampleId) || "";
+                const sampleSuf = getV(r, GROUT_FIELDS.sampleSuffix) || "";
+                const specID = sampleNo + (sampleSuf || "");
+
+                const density = (getV(r, GROUT_FIELDS.avgMPUV) ? numOrBlank(getV(r, GROUT_FIELDS.avgMPUV)) : "");
+                const muvol = (getV(r, GROUT_FIELDS.addMPUV) ? numOrBlank(getV(r, GROUT_FIELDS.addMPUV)) : "");
+                const strength = (("Strength" in r) ? numOrBlank(r["Strength"]) : "");
+
+                const avgDia = numOrBlank(getV(r, GROUT_FIELDS.avgDiam));
+                const height = numOrBlank(getV(r, GROUT_FIELDS.height));
+                const loadSz = numOrBlank(getV(r, GROUT_FIELDS.loadSize));
+                const progLd = numOrBlank(getV(r, GROUT_FIELDS.progress));
+                const measSl = numOrBlank(getV(r, GROUT_FIELDS.conc));
+
+                const cTemp = numOrBlankTemp(getV(r, GROUT_FIELDS.concTemp));
+                const aTemp = numOrBlankTemp(getV(r, GROUT_FIELDS.ambTemp));
+
+                const sampledTxt = first(getV(r, GROUT_FIELDS.sampledDate));
+                const testedTxt = first(getV(r, GROUT_FIELDS.dateTested));
+
+                const baseLoc = first(getV(r, GROUT_FIELDS.locdesc), getV(r, GROUT_FIELDS.remarks)).trim();
+                const builtLoc = (() => {
+                    const date1 = normalizeToDMYString(sampledTxt);
+                    const date2 = normalizeToDMYString(testedTxt);
+                    const age = intOrBlank(getV(r, GROUT_FIELDS.ageDays));
+                    const parts = [];
+                    if (baseLoc) parts.push(baseLoc);
+                    if (measSl !== "") parts.push(`${measSl}`);
+                    const segs = [];
+                    if (date1) segs.push(`Grout Testing ${date1}`);
+                    if (age !== "") segs.push(`${age}`);
+                    if (date2) segs.push(`Grout Testing ${date2}`);
+                    if (segs.length) parts.push(segs.join("_ "));
+                    return parts.join("_ ");
+                })();
+
+                const docketStr = first(getV(r, GROUT_FIELDS.docket));
+                const remarksTxt = first(getV(r, GROUT_FIELDS.remarks));
+                const existingSC = first(r["Source Code"]);
+                const inferredSC = existingSC; // no inference
+
+                const row = {
+                    "Date": normalizeToDMYString(sampledTxt),
+                    "Source Code": inferredSC,
+                    "Docket": docketStr,
+                    "ClientName": first(getV(r, GROUT_FIELDS.client)),
+                    "ProjectName": first(getV(r, GROUT_FIELDS.project)),
+                    "PourNo": (mapRef.get(wr) || ""),
+                    "Lots": "",
+                    "SampleID": sampleNo,
+                    "Specimen ID": specID,
+                    "Type": "GROCUBE",
+                    "Product Code": first(getV(r, GROUT_FIELDS.mix)),
+                    "Date Batched": normalizeToDMYString(sampledTxt),
+                    "Time Sampled": first(getV(r, GROUT_FIELDS.timeSampled)),
+                    "Time Batched": first(getV(r, GROUT_FIELDS.timeBatched)),
+                    "Time Moulded": first(getV(r, GROUT_FIELDS.timeMoulded)),
+                    "Date Tested": normalizeToDMYString(testedTxt),
+                    "Age Days": splitAgeDaysHours(getV(r, GROUT_FIELDS.ageDays), "").ageDays,
+                    "Age Hours": splitAgeDaysHours(getV(r, GROUT_FIELDS.ageDays), "").ageHours,
+                    "Init Curing Hrs": "",
+                    "Std Curing Days": "",
+                    "Grade": first(getV(r, GROUT_FIELDS.grade)) || "",
+                    "Density": density,
+                    "Mass Unit Vol": muvol,
+                    "Dim1": avgDia,
+                    "Dim2": height,
+                    "Load Size": loadSz,
+                    "Progress Load": progLd,
+                    "Des slmp": "",
+                    "Measured Slump": measSl,
+                    "Second Slump": "",
+                    "Avg Diameter": avgDia,
+                    "Avg Height": height,
+                    "Strength": strength,
+                    "Compact Method": "",
+                    "Measured Air": "",
+                    "Concrete Temp": cTemp,
+                    "Ambient Temp": aTemp,
+                    "Failure Mode": first(getV(r, GROUT_FIELDS.failure)),
+                    "Cap": "",
+                    "Marks": first(getV(r, GROUT_FIELDS.mould)),
+                    "Location Description": builtLoc,
+                    "Truck": "",
+                    "Remarks": remarksTxt,
+                    "Rounded Density (U)": (density === "" ? "" : mroundExcel(Number(density), 20)),
+                    "Rounded MPUV (V)":   (muvol   === "" ? "" : mroundExcel(Number(muvol), 10)),
+					"Rounded Strength (AE)": (strength === "" ? "" : roundStrengthBoral(Number(strength))),
+
+                };
+                out.push(row);
+            }
+            return out;
+        }
+
+        // UI functions
+        function showSection(sectionName) {
+            // Hide all sections
+            document.querySelectorAll('.section').forEach(section => {
+                section.classList.add('hidden');
+            });
+
+            // Show selected section
+            document.getElementById(sectionName + '-section').classList.remove('hidden');
+
+            // Update navigation
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('bg-blue-500', 'text-white', 'shadow-sm');
+                btn.classList.add('text-slate-600', 'hover:bg-slate-100', 'hover:text-slate-900');
+            });
+
+            document.getElementById('nav-' + sectionName).classList.remove('text-slate-600', 'hover:bg-slate-100', 'hover:text-slate-900');
+            document.getElementById('nav-' + sectionName).classList.add('bg-blue-500', 'text-white', 'shadow-sm');
+
+            // Reinitialize drop zones when section changes
+            setTimeout(initDropZones, 0);
+        }
+
+        function showProgress(message) {
+            document.getElementById('progressOverlay').classList.remove('hidden');
+            document.getElementById('progressMessage').textContent = message;
+            document.getElementById('progressBar').style.width = '0%';
+        }
+
+        function updateProgress(percent, message) {
+            document.getElementById('progressBar').style.width = percent + '%';
+            if (message) {
+                document.getElementById('progressMessage').textContent = message;
+            }
+        }
+
+        function hideProgress() {
+            document.getElementById('progressOverlay').classList.add('hidden');
+        }
+
+        function celebrate() {
+            const duration = 1000;
+            const end = Date.now() + duration;
+            (function frame() {
+                confetti({
+                    particleCount: 6,
+                    angle: 60,
+                    spread: 55,
+                    origin: { x: 0 }
+                });
+                confetti({
+                    particleCount: 6,
+                    angle: 120,
+                    spread: 55,
+                    origin: { x: 1 }
+                });
+                if (Date.now() < end) requestAnimationFrame(frame);
+            })();
+        }
+
+        function logConvert(message) {
+            logs.convert += '\n' + message;
+            document.getElementById('convertLog').textContent = logs.convert;
+            document.getElementById('convertLogView').textContent = logs.convert;
+        }
+
+        function logWeekly(message) {
+            logs.weekly += '\n' + message;
+            document.getElementById('weeklyLog').textContent = logs.weekly;
+            document.getElementById('weeklyLogView').textContent = logs.weekly;
+        }
+
+        function logCQ(message) {
+            logs.cq += '\n' + message;
+            document.getElementById('cqLog').textContent = logs.cq;
+            document.getElementById('cqLogView').textContent = logs.cq;
+        }
+
+        function updateStats() {
+            document.getElementById('processedRows').textContent = appState.processedRows.toLocaleString();
+            document.getElementById('filesExported').textContent = appState.filesExported;
+            document.getElementById('lastExport').textContent = appState.lastExport;
+            
+            const total = appState.concreteCount + appState.shortcreteCount;
+            const concretePerc = total > 0 ? Math.round((appState.concreteCount / total) * 100) : 0;
+            const shortcretePerc = total > 0 ? Math.round((appState.shortcreteCount / total) * 100) : 0;
+            
+            document.getElementById('concretePerc').textContent = concretePerc + '%';
+            document.getElementById('shortcretePerc').textContent = shortcretePerc + '%';
+            
+            updateChart();
+        }
+
+        function updateChart() {
+            if (chart) {
+                chart.data.datasets[0].data = [appState.concreteCount, appState.shortcreteCount];
+                chart.update();
+            }
+        }
+
+        function addHistory(filename) {
+            const history = JSON.parse(localStorage.getItem('dct-history') || '[]');
+            history.unshift({ name: filename, time: new Date().toLocaleString() });
+            localStorage.setItem('dct-history', JSON.stringify(history.slice(0, 6)));
+            updateHistoryDisplay();
+        }
+
+        function updateHistoryDisplay() {
+            const history = JSON.parse(localStorage.getItem('dct-history') || '[]');
+            const historyList = document.getElementById('historyList');
+            
+            if (history.length === 0) {
+                historyList.innerHTML = '<div class="text-sm text-slate-500">No exports yet — your generated files will appear here</div>';
+            } else {
+                historyList.innerHTML = history.map(item => `
+                    <div class="flex justify-between items-center p-3 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 transition-colors">
+                        <div class="font-bold text-slate-900 text-sm truncate mr-2">${item.name}</div>
+                        <div class="text-xs text-slate-500 font-semibold whitespace-nowrap">${item.time}</div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function clearHistory() {
+            localStorage.removeItem('dct-history');
+            updateHistoryDisplay();
+        }
+
+        // File handling
+        function selectFile(fileType) {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.csv,.xlsx,.xls';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    files[fileType] = file;
+                    updateFileDisplay(fileType, file);
+                    updateButtonStates();
+                }
+            };
+            input.click();
+        }
+
+        function updateFileDisplay(fileType, file) {
+            const fileElement = document.getElementById(fileType + 'File');
+            const badgeElement = document.getElementById(fileType + 'Badge');
+            const dropZone = fileElement.closest('.drop-zone');
+            
+            if (file) {
+                fileElement.textContent = file.name;
+                badgeElement.textContent = '✓ Selected';
+                badgeElement.className = 'inline-flex items-center px-2 py-1 rounded-md text-xs font-bold border bg-emerald-50 border-emerald-300 text-emerald-700';
+                dropZone.classList.add('has-file');
+            } else {
+                fileElement.textContent = 'Drop file here or click to browse';
+                badgeElement.textContent = fileType === 'cyl' || fileType === 'field' || fileType === 'cube' ? 'Required' : 'Optional';
+                badgeElement.className = fileType === 'cyl' || fileType === 'field' || fileType === 'cube' ? 
+                    'inline-flex items-center px-2 py-1 rounded-md text-xs font-bold border bg-amber-50 border-amber-300 text-amber-700' :
+                    'inline-flex items-center px-2 py-1 rounded-md text-xs font-bold border bg-white border-slate-300 text-slate-600';
+                dropZone.classList.remove('has-file');
+            }
+        }
+
+        function updateButtonStates() {
+            const concreteReady = files.cyl && files.field;
+            const groutReady = files.cube;
+            
+            document.getElementById('generateConcrete').disabled = !concreteReady;
+            document.getElementById('generateGrout').disabled = !groutReady;
+            
+            document.getElementById('concreteStatus').textContent = concreteReady ? 'Ready' : 'Waiting for files';
+            document.getElementById('concreteStatus').className = concreteReady ? 
+                'inline-flex items-center px-2 py-1 rounded-md text-xs font-bold border bg-emerald-50 border-emerald-300 text-emerald-700' :
+                'inline-flex items-center px-2 py-1 rounded-md text-xs font-bold border bg-amber-50 border-amber-300 text-amber-700';
+                
+            document.getElementById('groutStatus').textContent = groutReady ? 'Ready' : 'Waiting for files';
+            document.getElementById('groutStatus').className = groutReady ? 
+                'inline-flex items-center px-2 py-1 rounded-md text-xs font-bold border bg-emerald-50 border-emerald-300 text-emerald-700' :
+                'inline-flex items-center px-2 py-1 rounded-md text-xs font-bold border bg-amber-50 border-amber-300 text-amber-700';
+        }
+
+        // Processing functions
+        async function generateConcrete() {
+            try {
+                const f1 = files.cyl;
+                const f2 = files.field;
+                if (!f1 || !f2) {
+                    alert('Please add both files.');
+                    return;
+                }
+
+                showProgress('Reading Concrete files...');
+                updateProgress(10);
+
+                const [rowsCyl, rowsField] = await Promise.all([loadAny(f1), loadAny(f2)]);
+
+                updateProgress(35, 'Mapping to Boral format...');
+                const mapped = buildConcreteBoral(rowsCyl, rowsField);
+                
+                updateProgress(65, 'Converting dates & generating Excel...');
+                const ws = rowsToSheet_withTimeFix(mapped);
+
+                updateProgress(85, 'Finalizing download...');
+                writeWB([["Boral", ws]], "Concrete_Boral.xlsx");
+
+                appState.concreteCount += mapped.length;
+                appState.processedRows += mapped.length;
+                appState.filesExported += 1;
+                appState.lastExport = "Concrete_Boral.xlsx";
+
+                addHistory("Concrete_Boral.xlsx");
+                updateProgress(100, 'Complete!');
+                hideProgress();
+                logConvert('✅ Concrete_Boral.xlsx generated successfully (' + mapped.length + ' rows processed)');
+                updateStats();
+                celebrate();
+            } catch (e) {
+                console.error(e);
+                hideProgress();
+                alert('Concrete processing error: ' + (e.message || e));
+            }
+        }
+
+        async function generateGrout() {
+            try {
+                const f1 = files.cube;
+                const f2 = files.gse;
+
+                showProgress('Reading Grout files...');
+                updateProgress(10);
+
+                const [rowsCube, rowsExport] = await Promise.all([loadAny(f1), loadAny(f2 || null)]);
+
+                updateProgress(35, 'Mapping to Boral format...');
+                const mapped = buildGroutBoral(rowsCube || [], rowsExport || []);
+
+                updateProgress(65, 'Converting dates & generating Excel...');
+                const ws = rowsToSheet_withTimeFix(mapped);
+
+                updateProgress(85, 'Finalizing download...');
+                writeWB([["Boral", ws]], "Grout_Boral.xlsx");
+
+                appState.shortcreteCount += mapped.length;
+                appState.processedRows += mapped.length;
+                appState.filesExported += 1;
+                appState.lastExport = "Grout_Boral.xlsx";
+
+                addHistory("Grout_Boral.xlsx");
+                updateProgress(100, 'Complete!');
+                hideProgress();
+                logConvert('✅ Grout_Boral.xlsx generated successfully (' + mapped.length + ' rows processed)');
+                updateStats();
+                celebrate();
+            } catch (e) {
+                console.error(e);
+                hideProgress();
+                alert('Grout processing error: ' + (e.message || e));
+            }
+        }
+// Picks the most reliable date from a row and returns UTC millis (or null)
+// Works for DD/MM/YYYY strings and Excel serial numbers.
+function pickRowDateMillis(row) {
+    const candidates = [
+        row["Date"],
+        row["Date Batched"],
+        row["Sampled Date"],
+        row["Date Sampled"],
+        row["Date Tested"]
+    ];
+
+    // Try normalized DD/MM/YYYY strings first
+    for (const v of candidates) {
+        const s = normalizeToDMYString(v); // existing util in your file
+        if (s) {
+            const [dd, mm, yyyy] = s.split('/').map(Number);
+            const d = new Date(Date.UTC(yyyy, mm - 1, dd)); // UTC to avoid TZ drift
+            if (!isNaN(d)) return d.getTime();
+        }
+    }
+
+    // Fallback: Excel serial number (rare but appears in some site files)
+    const raw = candidates.find(x => typeof x === 'number' || /^\d+(\.\d+)?$/.test(String(x || '')));
+    if (raw != null && raw !== "") {
+        const n = Number(raw);
+        if (!isNaN(n) && n > 1) {
+            // Excel epoch 1899-12-30 → Unix epoch
+            return Math.round((n - 25569) * 86400 * 1000);
+        }
+    }
+    return null;
+}
+
+
+// ===== Weekly Summary: GEM-style strict date merge (added) =====
+const WEEKLY_DATE_COLUMNS = ["Date", "Date Batched", "Date Tested"];
+const WEEKLY_TIME_COLUMNS = ["Time Sampled", "Time Batched", "Time Moulded"];
+
+function weeklyFormatDateString(dateObj) {
+    if (!dateObj || isNaN(dateObj)) return "";
+    const y = dateObj.getFullYear();
+    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const d = String(dateObj.getDate()).padStart(2, '0');
+    return `${d}/${m}/${y}`;
+}
+
+function weeklyFormatTimeString(dateObj) {
+    if (!dateObj || isNaN(dateObj)) return "";
+    const h = String(dateObj.getHours()).padStart(2, '0');
+    const m = String(dateObj.getMinutes()).padStart(2, '0');
+    return `${h}:${m}`; // seconds removed to match manual output
+}
+
+async function weeklyReadXlsxWithDates(file) {
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+    const ws = workbook.Sheets[workbook.SheetNames[0]];
+    return XLSX.utils.sheet_to_json(ws, { defval: "" });
+}
+
+// Weekly loader: XLSX -> cellDates:true (Gem). CSV -> existing loadAny() unchanged.
+async function weeklyLoad(file) {
+    if (!file) return [];
+    if (/\.csv$/i.test(file.name)) return loadAny(file);
+    return weeklyReadXlsxWithDates(file);
+}
+
+function weeklyApplyGemFormatting(rows) {
+    return (rows || []).map(row => {
+        const newRow = { ...row };
+        Object.keys(newRow).forEach(key => {
+            const val = newRow[key];
+            const cleanKey = key.trim();
+
+            if (val instanceof Date) {
+                if (WEEKLY_DATE_COLUMNS.some(col => cleanKey.toLowerCase() === col.toLowerCase())) {
+                    newRow[key] = weeklyFormatDateString(val);
+                } else if (WEEKLY_TIME_COLUMNS.some(col => cleanKey.toLowerCase() === col.toLowerCase())) {
+                    newRow[key] = weeklyFormatTimeString(val);
+                } else {
+                    newRow[key] = weeklyFormatDateString(val);
+                }
+            }
+        });
+        return newRow;
+    });
+}
+// ===== End GEM-style additions =====
+
+        async function generateWeekly() {
+            try {
+                logWeekly("📊 Initializing weekly report generation...");
+                
+                const [cBoral, gBoralRaw, lobsAll, poloAll] = await Promise.all([
+                    files.boralc ? weeklyLoad(files.boralc) : [],
+                    files.boralg ? weeklyLoad(files.boralg) : [],
+                    files.lobs ? weeklyLoad(files.lobs) : [],
+                    files.polo ? weeklyLoad(files.polo) : []
+                ]);
+
+                // Remove all Docket numbers from GROUT input
+                const gBoral = gBoralRaw.map(r => {
+                    const z = { ...r };
+                    z["Docket"] = "";
+                    return z;
+                });
+
+                let all = [...cBoral, ...gBoral, ...lobsAll, ...poloAll];
+                logWeekly("📈 Total input rows: " + all.length);
+                // --- GEM-style strict date filtering & formatting (DO NOT GUESS) ---
+                let filtered = all;
+
+                const sVal = document.getElementById('startDate').value;
+                const eVal = document.getElementById('endDate').value;
+
+                // Match Gem tool behavior: require BOTH dates
+                if (!sVal || !eVal) {
+                    alert("Please select both dates.");
+                    return;
+                }
+
+                const start = new Date(sVal); start.setHours(0,0,0,0);
+                const end   = new Date(eVal); end.setHours(0,0,0,0);
+
+                logWeekly(`📅 Filtering Range: ${weeklyFormatDateString(start)} to ${weeklyFormatDateString(end)}`);
+
+                const filteredRaw = all.filter(row => {
+                    const dateKey = Object.keys(row).find(k => k.trim().toLowerCase() === "date");
+                    if (!dateKey) return false;
+
+                    const val = row[dateKey];
+                    if (val instanceof Date) {
+                        const check = new Date(val);
+                        check.setHours(0,0,0,0);
+                        return check >= start && check <= end; // inclusive
+                    }
+                    return false;
+                });
+
+                logWeekly(`🔍 Filtered (Gem rules): ${all.length} → ${filteredRaw.length} rows`);
+
+                // Apply exact manual formatting: DD/MM/YYYY and HH:MM (no seconds)
+                logWeekly("🧼 Applying Gem formatting (DD/MM/YYYY and HH:MM)...");
+                filtered = weeklyApplyGemFormatting(filteredRaw);
+
+                // If Source Code Auto-Fill is enabled and TR Summary is loaded, fill missing codes
+                if (window.sourceCodeFillerEnabled && window.trSummaryData) {
+                    try {
+                        const beforeCount = filtered.length;
+                        filtered = await fillSourceCodes(filtered);
+                        logWeekly(`✅ Source Code Auto-Fill applied (rows: ${beforeCount} → ${filtered.length})`);
+                    } catch (e) {
+                        logWeekly(`❌ Source Code Auto-Fill error: ${e && e.message ? e.message : e}`);
+                    }
+                } else {
+                    logWeekly('ℹ️ Source Code Auto-Fill skipped (toggle off or TR Summary not loaded)');
+                }
+
+                const ws = rowsToSheet_withTimeFix(filtered);
+                const dateSuffix = sVal ? String(sVal).split('-').reverse().join('.') : '';
+                const mainFileName = dateSuffix ? `All Sites Main ${dateSuffix}.xlsx` : "All_Sites_Main_Data.xlsx";
+                
+                writeWB([["All Sites (Main)", ws]], mainFileName);
+                logWeekly(`✅ ${mainFileName} generated (${filtered.length} rows)`);
+
+               // --- Temperature Extract (restored & updated spec) ---
+// Helpers scoped to this block only
+function goodTemp(v) {
+  const n = numOrBlankTemp(v);
+  return typeof n === "number" && isFinite(n) && n >= -5 && n <= 60 ? n : "";
+}
+function hasAnyGoodTemp(r) {
+  return goodTemp(r["Concrete Temp"]) !== "" || goodTemp(r["Ambient Temp"]) !== "";
+}
+function findTRLocal(pourNo) {
+  const s = String(pourNo || "");
+  const m = s.match(/\bTR[-\s]*\d+\b/i);
+  return m ? m[0].toUpperCase().replace(/\s+/g, "") : "";
+}
+function getTRKey(row) {
+  // Prefer TR from PourNo; fallback to normalized PourNo
+  return findTRLocal(row["PourNo"]) || String(row["PourNo"] || "").trim().toUpperCase();
+}
+function completenessScore(r) {
+  const fields = ["Date","Source Code","Docket","PourNo","Type","Product Code","Date Batched","Age Days","Concrete Temp","Ambient Temp"];
+  let score = 0;
+  for (const k of fields) {
+    const v = r[k];
+    if (v !== "" && v !== null && v !== undefined) score++;
+  }
+  // bonus if both temps present
+  if (goodTemp(r["Concrete Temp"]) !== "" && goodTemp(r["Ambient Temp"]) !== "") score += 0.5;
+  return score;
+}
+function newestMillis(r) {
+  // Prefer Date Batched, fallback to Date (both may be DMY strings that pickRowDateMillis already understands elsewhere)
+  const dB = r["Date Batched"] || "";
+  const d = r["Date"] || "";
+  const mB = pickRowDateMillis({ "Date": dB });
+  if (typeof mB === "number") return mB;
+  const m = pickRowDateMillis({ "Date": d });
+  return (typeof m === "number") ? m : -1;
+}
+function normalizeTypeGrocubeIfMissing(r) {
+  if (String(r["Type"] || "").trim()) return r; // only when Type is blank
+  const pc = String(r["Product Code"] || "").toLowerCase().replace(/[\s\-_.]+/g, " ");
+  const hit =
+    pc.includes("mix a gp") ||
+    pc.includes("masterroc mg 01") || pc.includes("masterroc mg01") ||
+    pc === "mg 01" || pc === "mg01" || pc.includes(" mg 01 ") || pc.endsWith(" mg 01") || pc.startsWith("mg 01 ") ||
+    pc.includes("infragrout 100") || pc.includes("infra grout 100") || (pc.includes("infra grout") && pc.includes("100")) ||
+    pc.includes("backfill grout") || pc.includes("back fill grout") || pc.includes("back fill") ||
+    pc.includes("Infragrout") || pc.includes("Infra grout") || pc.includes("Infra Grout") ||
+    pc.includes("secondary b fill") || pc.includes("secondary backfill") || pc.includes("sec b fill");
+  if (hit) r["Type"] = "GROCUBE";
+  return r;
+}
+function typeGroupOrder(t) {
+  const T = String(t || "").toUpperCase();
+  if (T === "COMP100" || T === "COMPCOR") return 1;
+  if (T === "GROCUBE") return 2;
+  return 3; // special/other
+}
+function siteKey(row) {
+  // We are no longer inferring/propagating Source Code (rules 14 & 15 removed).
+  // Site tabs still derive from existing Source Code and ProjectName.
+  const sc = String(row["Source Code"] || "").toUpperCase();
+  const pn = String(row["ProjectName"] || "").toLowerCase();
+  if (sc === "TAN" || pn.includes("tantangara")) return "TAN";
+  if (sc === "LOBS" || /\blobs?\b/.test(pn) || pn.includes("lobs hole")) return "LOBS";
+  if (sc === "MAR" || pn.includes("marica")) return "MAR";
+  if (sc === "POLO" || pn.includes("polo flat")) return "POLO";
+  return ""; // not placed into a site tab
+}
+
+// 1) Inclusion rules: PourNo present + at least one good temp (weekly date filtering already applied upstream)
+let tempRows = filtered.filter(r => String(r["PourNo"] || "").trim() && hasAnyGoodTemp(r));
+
+// 2) Clean/normalize values. Ensure Date Batched fallback → Date. Uppercase Source Code if present.
+tempRows = tempRows.map(r => {
+  const z = { ...r };
+  z["Concrete Temp"] = goodTemp(r["Concrete Temp"]);
+  z["Ambient Temp"]  = goodTemp(r["Ambient Temp"]);
+  if (!String(z["Date Batched"] || "").trim()) z["Date Batched"] = z["Date"];
+  if (z["Source Code"]) z["Source Code"] = String(z["Source Code"]).trim().toUpperCase();
+  return normalizeTypeGrocubeIfMissing(z); // 3) Type autofill only when missing (GROCUBE patterns)
+});
+
+// 4) De-dup per TR: keep the “best” row by completeness → both temps → newest date → higher C.Temp → stable
+const bestByTR = new Map();
+for (const r of tempRows) {
+  const key = getTRKey(r);
+  const prev = bestByTR.get(key);
+  if (!prev) {
+    bestByTR.set(key, r);
+    continue;
+  }
+  const a = prev, b = r;
+  const sA = completenessScore(a), sB = completenessScore(b);
+  if (sB > sA) { bestByTR.set(key, b); continue; }
+  if (sB === sA) {
+    const bothA = (goodTemp(a["Concrete Temp"]) !== "" && goodTemp(a["Ambient Temp"]) !== "");
+    const bothB = (goodTemp(b["Concrete Temp"]) !== "" && goodTemp(b["Ambient Temp"]) !== "");
+    if (bothB && !bothA) { bestByTR.set(key, b); continue; }
+    if (bothB === bothA) {
+      const tA = newestMillis(a), tB = newestMillis(b);
+      if (tB > tA) { bestByTR.set(key, b); continue; }
+      if (tB === tA) {
+        const cA = Number(a["Concrete Temp"] || -9999);
+        const cB = Number(b["Concrete Temp"] || -9999);
+        if (cB > cA) { bestByTR.set(key, b); continue; }
+        // else keep existing (stable)
+      }
+    }
+  }
+}
+let tempNormalized = Array.from(bestByTR.values());
+
+// 5) Uniform ordering for Main + Site sheets:
+//   Type group: COMP100/COMPCOR → GROCUBE → Other
+//   then Date Batched/Date asc, then PourNo asc, then Docket asc
+tempNormalized.sort((a, b) => {
+  const g = typeGroupOrder(a["Type"]) - typeGroupOrder(b["Type"]);
+  if (g !== 0) return g;
+  const ta = newestMillis(a), tb = newestMillis(b);
+  if (ta !== tb) return ta - tb;
+  const pn = String(a["PourNo"] || "").localeCompare(String(b["PourNo"] || ""));
+  if (pn !== 0) return pn;
+  return String(a["Docket"] || "").localeCompare(String(b["Docket"] || ""));
+});
+
+// 6) Project final columns (drop Location Description, keep order you approved)
+const PROJECT_COLS = ["Date","Source Code","Docket","PourNo","Type","Product Code","Date Batched","Age Days","Concrete Temp","Ambient Temp"];
+const tempOut = tempNormalized.map(r => {
+  const z = {};
+  for (const k of PROJECT_COLS) z[k] = r[k] ?? "";
+  // rowsToSheet_withTimeFix will handle date normalization/serials
+  return { ...z, ProjectName: r["ProjectName"] || "", "Source Code": z["Source Code"] }; // keep ProjectName only for siteKey()
+});
+
+// 7) Build sheets: Main + per-site (TAN/LOBS/MAR/POLO if present)
+const sheets = [];
+sheets.push(["Main (Temperature)", rowsToSheet_withTimeFix(tempOut.map(({ProjectName, ...rest}) => rest))]);
+
+const buckets = { TAN: [], LOBS: [], MAR: [], POLO: [] };
+for (const r of tempOut) {
+  const sk = siteKey(r);
+  if (buckets[sk]) buckets[sk].push(r);
+}
+for (const key of ["TAN","LOBS","MAR","POLO"]) {
+  if (buckets[key].length) {
+    const arr = buckets[key]
+      .slice()
+      .sort((a, b) => {
+        const g = typeGroupOrder(a["Type"]) - typeGroupOrder(b["Type"]);
+        if (g !== 0) return g;
+        const ta = newestMillis(a), tb = newestMillis(b);
+        if (ta !== tb) return ta - tb;
+        const pn = String(a["PourNo"] || "").localeCompare(String(b["PourNo"] || ""));
+        if (pn !== 0) return pn;
+        return String(a["Docket"] || "").localeCompare(String(b["Docket"] || ""));
+      })
+      .map(({ProjectName, ...rest}) => rest); // drop ProjectName from export
+    sheets.push([key, rowsToSheet_withTimeFix(arr)]);
+  }
+}
+
+const tempFileName = dateSuffix ? `Temperature ${dateSuffix}.xlsx` : "Temperature_Extract.xlsx";
+writeWB(sheets, tempFileName);
+logWeekly(`📌 Temperature rows (post-dedupe): ${tempOut.length} · Sheets: ${sheets.length}`);
+
+
+                appState.processedRows += filtered.length;
+                appState.filesExported += 2;
+                appState.lastExport = tempFileName;
+
+                addHistory(mainFileName);
+                addHistory(tempFileName);
+                updateStats();
+                celebrate();
+            } catch (e) {
+                console.error(e);
+                alert("Weekly processing error: " + e.message);
+            }
+        }
+
+        // CQ Cleaner functions
+        function normHeader(h) {
+            if (h == null) return '';
+            return String(h).trim().replace(/[_\-.]+/g, ' ').replace(/\s+/g, ' ').toLowerCase();
+        }
+
+        function findHeader(cols, aliases) {
+            const normed = cols.map(normHeader);
+            for (const a of aliases) {
+                const i = normed.indexOf(a);
+                if (i > -1) return cols[i];
+            }
+            return null;
+        }
+
+        function excelTimeToHHMM(val) {
+            if (val == null || val === "") return '';
+            
+            if (val instanceof Date) {
+                const hh = String(val.getHours()).padStart(2, '0');
+                const mm = String(val.getMinutes()).padStart(2, '0');
+                return `${hh}:${mm}`;
+            }
+            // If value is an object with h and m properties (e.g. {h:17,m:30}), convert directly
+            try {
+                if (typeof val === 'object' && 'h' in val && 'm' in val) {
+                    const hh = String(val.h).padStart(2, '0');
+                    const mm = String(val.m).padStart(2, '0');
+                    return `${hh}:${mm}`;
+                }
+            } catch (e) {}
+
+            const s = String(val).trim();
+            
+            let m = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+            if (m) {
+                const hh = (+m[1]).toString().padStart(2, '0');
+                const mm = (+m[2]).toString().padStart(2, '0');
+                return `${hh}:${mm}`;
+            }
+
+            m = s.match(/^(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])$/);
+            if (m) {
+                let hh = parseInt(m[1], 10);
+                const mm = parseInt(m[2] || '0', 10);
+                const ap = m[3].toLowerCase();
+                if (ap === 'pm' && hh !== 12) hh += 12;
+                if (ap === 'am' && hh === 12) hh = 0;
+                return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+            }
+
+            const num = Number(s);
+            if (!isNaN(num)) {
+                const frac = ((num % 1) + 1) % 1;
+                const seconds = Math.round(frac * 24 * 60 * 60);
+                const hh = String(Math.floor(seconds / 3600) % 24).padStart(2, '0');
+                const mm = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+                return `${hh}:${mm}`;
+            }
+            // 6) compact format like 1730 → 17:30
+            m = s.match(/^(\d{1,2})(\d{2})$/);
+            if (m) {
+                const hh = m[1].padStart(2, '0');
+                const mm = m[2].padStart(2, '0');
+                return `${hh}:${mm}`;
+            }
+
+            return '';
+        }
+
+        function extractNumericTR(v) {
+            if (v == null) return '';
+            const m = String(v).match(/(\d{3,})/);
+            return m ? m[1] : '';
+        }
+
+        function addPreview(parent, rows) {
+            if (!rows || !rows.length) {
+                parent.innerHTML = '<div class="cq-preview-content">No preview available</div>';
+                return;
+            }
+
+            const table = document.createElement('table');
+            table.className = 'cq-preview-table';
+            
+            const thead = document.createElement('thead');
+            const trh = document.createElement('tr');
+            Object.keys(rows[0]).slice(0, 6).forEach(k => {
+                const th = document.createElement('th');
+                th.textContent = k;
+                trh.appendChild(th);
+            });
+            thead.appendChild(trh);
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            rows.slice(0, 10).forEach(r => {
+                const tr = document.createElement('tr');
+                Object.keys(rows[0]).slice(0, 6).forEach(k => {
+                    const td = document.createElement('td');
+                    td.textContent = String(r[k] || '').substring(0, 20);
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+
+            parent.innerHTML = '';
+            parent.appendChild(table);
+        }
+
+        async function processCQFile(file) {
+            const keepTR = document.getElementById('cq-keepTR').checked;
+            const perSite = document.getElementById('cq-perSite').checked;
+
+            logCQ(`📁 Reading: ${file.name}`);
+
+            const isGrout = /\bgrout\b/i.test(file.name) || /\bgrout\s*boral\b/i.test(file.name);
+            if (isGrout) logCQ('🧪 Grout mode detected from filename');
+
+            const data = await file.arrayBuffer();
+            const wb = XLSX.read(data, { type: 'array', cellDates: true, cellNF: false, cellText: false });
+
+            let picked = wb.SheetNames[0], maxCells = -1;
+            for (const n of wb.SheetNames) {
+                const ws = wb.Sheets[n];
+                const r = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+                const cells = (r.e.r - r.s.r + 1) * (r.e.c - r.s.c + 1);
+                if (cells > maxCells) { maxCells = cells; picked = n; }
+            }
+
+            const ws = wb.Sheets[picked];
+            const json = XLSX.utils.sheet_to_json(ws, { defval: "" });
+            const headers = Object.keys(json[0] || {});
+
+            logCQ(`📊 Using sheet: ${picked} · Rows: ${json.length} · Cols: ${headers.length}`);
+
+            const dateBatchedCol = findHeader(headers, ["date batched", "batching date"]);
+            const timeBatchedCol = findHeader(headers, ["time batched", "batching time"]);
+            const timeSampledCol = findHeader(headers, ["time sampled"]);
+            const timeMouldedCol = findHeader(headers, ["time moulded", "time molded", "moulding time", "molding time"]);
+            const trCol = findHeader(headers, ["pourno", "pour no", "tr no.", "tr no", "trno", "tr"]);
+            const docketCol = findHeader(headers, ["docket", "docket no", "docket number"]);
+            let typeCol = findHeader(headers, ["type"]);
+
+            let addedDate = 0, addedTime = 0, addedTR = 0;
+
+            // Add/alias Batching Date
+            if (!headers.includes('Batching Date') && dateBatchedCol) {
+                for (const row of json) {
+                    const v = row[dateBatchedCol];
+                    row['Batching Date'] = v instanceof Date ? v : (v ? new Date(v) : "");
+                }
+                addedDate = json.length;
+            }
+
+            // Add/alias Batching Time (HH:MM)
+            if (!headers.includes('Batching Time') && timeBatchedCol) {
+                for (const row of json) {
+                    row['Batching Time'] = excelTimeToHHMM(row[timeBatchedCol]);
+                }
+                addedTime = json.length;
+            } else if (timeBatchedCol) {
+                // If Batching Time column exists but some values are blank, fill them from the original Time Batched column
+                for (const row of json) {
+                    const cur = row['Batching Time'];
+                    if (cur == null || cur === "") {
+                        row['Batching Time'] = excelTimeToHHMM(row[timeBatchedCol]);
+                    }
+                }
+            }
+
+            // Normalize time columns
+            if (timeBatchedCol) {
+                for (const row of json) {
+                    row[timeBatchedCol] = excelTimeToHHMM(row[timeBatchedCol]);
+                }
+            }
+            if (timeSampledCol) {
+                for (const row of json) {
+                    row[timeSampledCol] = excelTimeToHHMM(row[timeSampledCol]);
+                }
+            }
+            if (timeMouldedCol) {
+                for (const row of json) {
+                    row[timeMouldedCol] = excelTimeToHHMM(row[timeMouldedCol]);
+                }
+            }
+
+            // TR No. numeric
+            if (trCol) {
+                const numericName = 'TR No. (numeric)';
+                for (const row of json) {
+                    row[numericName] = extractNumericTR(row[trCol]);
+                }
+                addedTR = json.length;
+                if (!keepTR) {
+                    for (const row of json) {
+                        row['TR No.'] = row[numericName];
+                    }
+                }
+            }
+
+            // Age Hours/Days logic
+            const ageDaysCol = findHeader(headers, ["age days", "age day"]);
+            const ageHoursCol = findHeader(headers, ["age hours", "age hrs", "age (hours)"]);
+            if (ageHoursCol && ageDaysCol) {
+                for (const row of json) {
+                    const ah = row[ageHoursCol];
+                    if (ah !== null && ah !== undefined && String(ah).trim() !== "") {
+                        row[ageDaysCol] = "";
+                    }
+                }
+            }
+
+            // Grout rules
+            if (isGrout) {
+                logCQ('🧪 Applying grout-specific rules...');
+                // Clear all Docket numbers
+                if (docketCol) {
+                    for (const row of json) {
+                        row[docketCol] = '';
+                    }
+                }
+                // Force Type = "GROCUBE"
+                if (!typeCol) { typeCol = 'Type'; }
+                for (const row of json) {
+                    row[typeCol] = 'GROCUBE';
+                }
+                if (!headers.includes(typeCol)) { headers.push(typeCol); }
+            }
+
+            // Build output
+            const helperCols = [];
+            if (!headers.includes('Batching Date') && dateBatchedCol) helperCols.push('Batching Date');
+            if (!headers.includes('Batching Time') && timeBatchedCol) helperCols.push('Batching Time');
+            if (trCol) helperCols.push('TR No.');
+
+            const orderedCols = [...headers.filter(h => !['TR No. (original)', 'Site', 'DORNER PRODUCTION DATE'].includes(h)), ...helperCols];
+            const outWS = XLSX.utils.json_to_sheet(json, { header: orderedCols, skipHeader: false });
+
+            outWS['!cols'] = orderedCols.map(() => ({ wch: 16 }));
+
+            const fname = file.name.replace(/\.xlsx$/i, '') + '_CQ_clean.xlsx';
+            const outWB = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(outWB, outWS, String(picked).substring(0, 31));
+
+            try {
+                // Write workbook to an Array and save using FileSaver. This avoids user gesture issues on some browsers.
+                const wbout = XLSX.write(outWB, { bookType: 'xlsx', type: 'array' });
+                saveAs(new Blob([wbout], { type: 'application/octet-stream' }), fname);
+                logCQ(`📁 File downloaded: ${fname}`);
+            } catch (error) {
+                console.error('CQ Download error:', error);
+                logCQ(`❌ Download failed: ${error.message}`);
+                throw error;
+            }
+
+            // Per-site exports if requested
+            if (perSite) {
+                const siteCol = findHeader(headers, ["source code", "site"]);
+                const wanted = ["TAN", "LOBS", "MAR"];
+                if (siteCol) {
+                    logCQ('📂 Generating per-site files...');
+                    const siteMap = Object.fromEntries(wanted.map(s => [s, []]));
+                    for (const row of json) {
+                        const v = (row[siteCol] ?? "").toString().toUpperCase();
+                        for (const s of wanted) {
+                            if (v.includes(s)) { siteMap[s].push(row); break; }
+                        }
+                    }
+                    for (const s of wanted) {
+                        const rows = siteMap[s];
+                        if (rows && rows.length) {
+                            const wsSite = XLSX.utils.json_to_sheet(rows, { header: Object.keys(rows[0]) });
+                            wsSite['!cols'] = Object.keys(rows[0]).map(() => ({ wch: 16 }));
+                            const wbSite = XLSX.utils.book_new();
+                            XLSX.utils.book_append_sheet(wbSite, wsSite, s);
+                            const fnameSite = file.name.replace(/\.xlsx$/i, '') + `_${s}.xlsx`;
+                            try {
+                                const outArr = XLSX.write(wbSite, { bookType: 'xlsx', type: 'array' });
+                                saveAs(new Blob([outArr], { type: 'application/octet-stream' }), fnameSite);
+                                logCQ(`📁 Site file downloaded: ${fnameSite}`);
+                            } catch (error) {
+                                console.error('CQ Site Download error:', error);
+                                logCQ(`❌ Site file download failed: ${error.message}`);
+                            }
+                        }
+                    }
+                }
+            }
+
+            logCQ(`✅ Processing complete!`);
+            logCQ(`📊 Summary: ${json.length} rows, ${headers.length} → ${orderedCols.length} columns`);
+            logCQ(`🔧 Added: Batching Date: ${addedDate > 0 ? 'yes' : 'no'} · Batching Time: ${addedTime > 0 ? 'yes' : 'no'} · TR No. numeric: ${addedTR > 0 ? 'yes' : 'no'}`);
+
+            appState.processedRows += json.length;
+            appState.filesExported += 1 + (perSite ? 3 : 0);
+            appState.lastExport = fname;
+
+            addHistory(fname);
+            updateStats();
+            celebrate();
+
+            // Update summary and preview
+            const summaryEl = document.getElementById('cq-summary');
+            if (summaryEl) {
+                summaryEl.innerHTML = `
+                    <div><strong>${file.name}</strong></div>
+                    <div style="font-size: 12px; color: #64748b; margin: 8px 0;">
+                        Rows: ${json.length} · Cols: ${headers.length} → ${orderedCols.length}
+                    </div>
+                    <div style="font-size: 12px;">
+                        <div style="color: #059669; margin: 4px 0;">Batching Date: ${addedDate > 0 ? 'Added' : 'No'}</div>
+                        <div style="color: #059669; margin: 4px 0;">Batching Time: ${addedTime > 0 ? 'Added' : 'No'}</div>
+                        <div style="color: #059669; margin: 4px 0;">TR No. numeric: ${addedTR > 0 ? 'Added' : 'No'}</div>
+                    </div>
+                `;
+            }
+
+            const previewEl = document.getElementById('cq-preview');
+            if (previewEl) {
+                addPreview(previewEl, json);
+            }
+
+            return { json, orderedCols, summary: { rows: json.length, cols: headers.length, newCols: orderedCols.length, addedDate, addedTime, addedTR } };
+        }
+
+        // Global handler for CQ button click.
+        // This function is attached via the onclick attribute on the CQ Process button.
+        // It ensures processing is triggered even if event listeners bound during initialization fail.
+        function handleCQProcess() {
+            const fileEl = document.getElementById('cq-file');
+            const f = fileEl && fileEl.files && fileEl.files[0];
+            if (!f) {
+                logCQ('Please choose an .xlsx file first.');
+                return;
+            }
+            // Call the async process function and handle errors.
+            processCQFile(f).catch(e => {
+                console.error(e);
+                logCQ('❌ ERROR: ' + (e.message || e));
+            });
+        }
+
+        // Initialize drag and drop for all drop zones
+        // Define a helper to attach drag/drop handlers. This may be called multiple times
+        // to ensure zones created after DOMContentLoaded also get handlers.
+        function initDropZones() {
+            document.querySelectorAll('.drop-zone').forEach(zone => {
+                // Avoid attaching duplicate listeners by checking a custom flag
+                if (zone.__dctDropInitialized) return;
+                zone.__dctDropInitialized = true;
+                zone.__dragCounter = 0;
+
+                zone.addEventListener('dragenter', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    zone.__dragCounter++;
+                    zone.classList.add('drag-over');
+                });
+
+                zone.addEventListener('dragleave', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    zone.__dragCounter--;
+                    if (zone.__dragCounter === 0) {
+                        zone.classList.remove('drag-over');
+                    }
+                });
+
+                zone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+
+                zone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    zone.__dragCounter = 0;
+                    zone.classList.remove('drag-over');
+                    const droppedFiles = Array.from(e.dataTransfer.files);
+                    if (droppedFiles.length > 0) {
+                        const onclickStr = zone.getAttribute('onclick');
+                        // Extract fileType from onclick="selectFile('TYPE')"
+                        let fileType = null;
+                        if (onclickStr) {
+                            const m = onclickStr.match(/selectFile\('([^']+)'\)/);
+                            if (m) fileType = m[1];
+                        }
+                        if (fileType) {
+                            files[fileType] = droppedFiles[0];
+                            updateFileDisplay(fileType, droppedFiles[0]);
+                            updateButtonStates();
+                        }
+                    }
+                });
+            });
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize chart
+            const ctx = document.getElementById('analysisChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Concrete', 'Shortcrete'],
+                    datasets: [{
+                        data: [0, 0],
+                        backgroundColor: [
+                            'rgba(59, 130, 246, 0.8)',
+                            'rgba(139, 92, 246, 0.8)'
+                        ],
+                        borderColor: [
+                            'rgba(59, 130, 246, 1)',
+                            'rgba(139, 92, 246, 1)'
+                        ],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true,
+                                font: {
+                                    family: 'Inter',
+                                    size: 12,
+                                    weight: '600'
+                                }
+                            }
+                        }
+                    },
+                    cutout: '60%',
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+
+            // Initialize CQ Cleaner
+            const cqBtn = document.getElementById('cq-process');
+            const cqFileEl = document.getElementById('cq-file');
+
+            if (cqBtn && cqFileEl) {
+                cqBtn.addEventListener('click', async () => {
+                    const f = cqFileEl.files && cqFileEl.files[0];
+                    if (!f) {
+                        logCQ('Please choose an .xlsx file first.');
+                        return;
+                    }
+                    try {
+                        await processCQFile(f);
+                    } catch (e) {
+                        console.error(e);
+                        logCQ('❌ ERROR: ' + (e.message || e));
+                    }
+                });
+            }
+
+            // Call once now and again after a tick to catch dynamically rendered sections
+            initDropZones();
+            setTimeout(initDropZones, 0);
+
+            // Initialize display
+            updateHistoryDisplay();
+            updateStats();
+            updateButtonStates();
+
+            // Defensive CQ Cleaner hook: attach click handler after DOM is ready.
+            // Some browsers or bundling situations delay rendering of the CQ Cleaner button, which
+            // can cause the initial event listener to miss it. This ensures the handler is
+            // attached once the button exists.
+            setTimeout(() => {
+                const btn = document.getElementById('cq-process');
+                const fileElDelayed = document.getElementById('cq-file');
+                if (btn && fileElDelayed) {
+                    btn.addEventListener('click', async function() {
+                        const f = fileElDelayed.files && fileElDelayed.files[0];
+                        if (!f) {
+                            logCQ('Please choose an .xlsx file first.');
+                            return;
+                        }
+                        try {
+                            await processCQFile(f);
+                        } catch (e) {
+                            console.error(e);
+                            logCQ('❌ ERROR: ' + (e.message || e));
+                        }
+                    });
+                }
+            }, 0);
+        });
+    </script>
+
+<script>
+// Minimal toggle for Source Code Auto-Fill (added)
+document.addEventListener('DOMContentLoaded', function () {
+  const toggle = document.getElementById('enableSourceCodeFiller');
+  const section = document.getElementById('sourceCodeFillerSection');
+  const zone = document.getElementById('trSummaryUploadZone');
+  const input = document.getElementById('trSummaryFile');
+  if (toggle && section) {
+    section.classList.toggle('hidden', !toggle.checked);
+    toggle.addEventListener('change', () => {
+      section.classList.toggle('hidden', !toggle.checked);
+    });
+  }
+  if (zone && input) {
+    zone.addEventListener('click', () => input.click());
+  }
+});
+</script>
+
+
+<script>
+// Bolt-style upload logic for TR Summary zone (added)
+(function(){
+  const zone = document.getElementById('trSummaryUploadZone');
+  const input = document.getElementById('trSummaryFile');
+  const weeklyLog = document.getElementById('weeklyLog'); // optional
+  function logB(m){
+    if (weeklyLog) { weeklyLog.textContent += '\n' + m; weeklyLog.scrollTop = weeklyLog.scrollHeight; }
+  }
+  if (!zone || !input) return;
+
+  // Visually indicate drag-over
+  ['dragenter','dragover'].forEach(ev => zone.addEventListener(ev, e => {
+    e.preventDefault(); e.stopPropagation(); zone.classList.add('ring', 'ring-blue-300', 'bg-slate-50');
+  }));
+  ['dragleave','drop'].forEach(ev => zone.addEventListener(ev, e => {
+    e.preventDefault(); e.stopPropagation(); zone.classList.remove('ring', 'ring-blue-300', 'bg-slate-50');
+  }));
+
+  // Click to open
+  zone.addEventListener('click', () => input.click());
+
+  // Handle drop
+  zone.addEventListener('drop', e => {
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) {
+      input.files = e.dataTransfer.files;
+      handleFile(f);
+    }
+  });
+
+  // Handle input change
+  input.addEventListener('change', () => {
+    const f = input.files && input.files[0];
+    if (f) handleFile(f);
+  });
+
+  async function handleFile(file){
+    // Update UI like bolt.html
+    try {
+      zone.querySelector('.font-semibold, .drop-title').textContent = '✅ ' + file.name;
+    } catch(_) {}
+    try {
+      const mini = zone.querySelector('.text-xs.text-slate-500, .mini');
+      if (mini) mini.textContent = 'TR Summary loaded successfully';
+    } catch(_) {}
+    try { zone.style.borderColor = '#22c55e'; } catch(_) {}
+
+    // If XLSX is available, parse and stash on window for later use (non-intrusive)
+    if (typeof XLSX !== 'undefined') {
+      try {
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array' });
+        // expose for other scripts if they want to use it later
+        window.trSummaryData = wb;
+        logB('📊 TR Summary loaded: ' + file.name);
+      } catch (err) {
+        logB('❌ Error loading TR Summary: ' + (err && err.message || err));
+      }
+    } else {
+      logB('ℹ️ XLSX not available; file name captured only.');
+    }
+  }
+})();
+</script>
+
+
+<script>
+// === Source Code Auto-Fill wiring (added) ===
+(function(){
+  // Track toggle
+  const toggle = document.getElementById('enableSourceCodeFiller');
+  window.sourceCodeFillerEnabled = !!(toggle && toggle.checked);
+  if (toggle) {
+    toggle.addEventListener('change', () => {
+      window.sourceCodeFillerEnabled = !!toggle.checked;
+    });
+  }
+
+  // Utility helpers (lightweight)
+  function norm(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); }
+  function normKey(s){ return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,''); }
+  function siteToSourceCode(site){
+    const s = norm(site).replace(/[_\-]+/g,' ').trim();
+    if(!s) return '';
+    if(/lobs\s*hole|talbingo|ecvt|dt\s*0?4|backfill\s*secondary\s*grout|mar\s*263\s*grout\s*trial|tss\s*-\s*uc\s*-\s*s5/.test(s)) return 'LOBS';
+    if(/tantangara/.test(s)) return 'TAN';
+    if(/\bmar\b|marica|marigold/.test(s)) return 'MAR';
+    if(/polo\s*flat/.test(s)) return 'POLO';
+    return '';
+  }
+  function extractTRNum(v){
+    const s = String(v||'').toUpperCase();
+    const m = s.match(/\bTR[^0-9]*([0-9]{3,})\b/);
+    if(m) return m[1];
+    const m2 = s.match(/\b([0-9]{3,})\b/);
+    return m2 ? m2[1] : '';
+  }
+
+  // Main filler: builds TR -> Source Code map from "TR Summary 2025" (or first sheet),
+  // then fills missing Source Code in the working dataset (filtered rows).
+  window.fillSourceCodes = async function(data){
+    const wb = window.trSummaryData;
+    if (!wb) return data;
+    const ws = wb.Sheets['TR Summary 2025'] || wb.Sheets[wb.SheetNames[0]];
+    if (!ws || !ws['!ref']) return data;
+
+    // detect headers in top 200 rows
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    const R1 = range.s.r, R2 = Math.min(range.s.r + 200, range.e.r);
+    const C1 = range.s.c, C2 = range.e.c;
+
+    function getCell(r,c){ const a = XLSX.utils.encode_cell({r,c}); const cell = ws[a]; return cell ? cell.v : ''; }
+
+    const headersWanted = ['TR No.', 'Site'];
+    let headerRow = -1, idx = {};
+    for(let r=R1; r<=R2; r++){
+      const rowHeaders = [];
+      for(let c=C1; c<=C2; c++){ rowHeaders.push(getCell(r,c)); }
+      const keys = rowHeaders.map(h => normKey(h));
+      const req = headersWanted.map(h => normKey(h));
+      if (req.every(k => keys.includes(k))) {
+        headerRow = r;
+        headersWanted.forEach(h => { idx[h] = keys.indexOf(normKey(h)); });
+        break;
+      }
+    }
+    if (headerRow < 0) return data;
+
+    // optional date filtering per UI
+    const weeklyEnableDateFilter = document.getElementById('weeklyEnableDateFilter');
+    const enableFilter = weeklyEnableDateFilter && weeklyEnableDateFilter.checked;
+    const startStr = (document.getElementById('startDate')||{}).value || '';
+    const endStr   = (document.getElementById('endDate')||{}).value || '';
+    const dateColName = ['Date','Date Tested','Updated On','Last Updated','Timestamp','Datetime','Date Batched']
+      .find(n => n && idx[n] == null); // we'll resolve by header scan below
+
+    // detect a date column by scanning header row again
+    let dateCol = -1;
+    {
+      const rowHeaders = [];
+      for(let c=C1; c<=C2; c++){ rowHeaders.push(getCell(headerRow,c)); }
+      const normed = rowHeaders.map(norm);
+      const cands = ['Date','Date Tested','Updated On','Last Updated','Timestamp','Datetime','Date Batched'].map(norm);
+      for(let i=0; i<normed.length; i++){
+        if (cands.includes(normed[i])) { dateCol = i; break; }
+      }
+    }
+
+    // Build TR -> [sc, date] array
+    const idxTR = idx['TR No.'];
+    const idxSite = idx['Site'];
+    const trToArr = new Map();
+    for(let r=headerRow+1; r<=range.e.r; r++){
+      const trRaw = getCell(r, C1 + idxTR);
+      const siteRaw = getCell(r, C1 + idxSite);
+      const trCanon = extractTRNum(trRaw);
+      const sc = siteToSourceCode(siteRaw);
+      if (!trCanon) continue;
+      let dt = null;
+      if (enableFilter && dateCol >= 0){
+        const dv = getCell(r, C1 + dateCol);
+        // try parse date via XLSX's SSF helper if numeric
+        if (typeof dv === 'number') {
+          const parsed = XLSX.SSF.parse_date_code(dv);
+          if (parsed) dt = Date.UTC(parsed.y, (parsed.m||1)-1, parsed.d||1);
+        } else if (dv) {
+          const t = new Date(dv);
+          if (!isNaN(t.getTime())) dt = Date.UTC(t.getFullYear(), t.getMonth(), t.getDate());
+        }
+      }
+      if (!trToArr.has(trCanon)) trToArr.set(trCanon, []);
+      trToArr.get(trCanon).push({ sc, date: dt });
+    }
+
+    // resolve conflicts per dropdown
+    const ruleSel = document.getElementById('weeklyConflictRule');
+    const rule = ruleSel ? ruleSel.value : 'latest';
+    const resolved = new Map();
+    for(const [tr, arr] of trToArr){
+      const valids = arr.filter(x => x.sc);
+      if (!valids.length) { resolved.set(tr,''); continue; }
+      let chosen = valids[0];
+      if (rule === 'last') chosen = valids[valids.length-1];
+      else if (rule === 'first') chosen = valids[0];
+      else if (rule === 'mostfreq') {
+        const freq = new Map();
+        for (const x of valids) freq.set(x.sc, (freq.get(x.sc)||0)+1);
+        let best=null, bn=-1;
+        for (const [sc,n] of freq) if (n>bn) { bn=n; best=sc; }
+        chosen = { sc: best, date: null };
+      } else { // latest
+        const withDates = valids.filter(x => typeof x.date === 'number');
+        chosen = withDates.length ? withDates.sort((a,b)=>b.date-a.date)[0] : valids[valids.length-1];
+      }
+      resolved.set(tr, chosen.sc);
+    }
+
+    // apply to dataset
+    let beforeMissing = 0, filled = 0;
+    const out = data.map(row => {
+      const z = { ...row };
+      const curr = String(z['Source Code']||'').trim();
+      if (!curr) beforeMissing++;
+      if (curr) return z;
+      const trCanon = extractTRNum(z['PourNo'] || z['TR'] || '');
+      if (!trCanon) return z;
+      const mapped = resolved.get(trCanon) || '';
+      if (mapped) { z['Source Code'] = mapped; filled++; }
+      return z;
+    });
+
+    // update UI stats if those elements exist
+    const missEl = document.getElementById('scMissingCount');
+    const fillEl = document.getElementById('scFilledCount');
+    const unrEl  = document.getElementById('scUnresolvedCount');
+    if (missEl && fillEl && unrEl) {
+      missEl.textContent = beforeMissing;
+      fillEl.textContent = filled;
+      unrEl.textContent  = Math.max(0, beforeMissing - filled);
+      const stats = document.getElementById('sourceCodeStats');
+      if (stats) stats.style.display = 'block';
+    }
+    return out;
+  };
+})();
+</script>
+
+</body>
+</html>
